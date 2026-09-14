@@ -52,7 +52,7 @@ export default function Hero({ data }) {
               className="mt-10 flex flex-wrap gap-4"
             >
               <a
-                href={data.buttonLink || "/products"}
+                href="/category/erkek-ayakkabi"
                 className="group inline-flex items-center gap-2 rounded-full bg-[#111111] px-8 py-4 text-white transition-all duration-300 hover:scale-[1.02]"
               >
                 {"Koleksiyonu İncele"}
