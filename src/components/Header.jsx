@@ -41,11 +41,8 @@ export default function Header({ settings, menus }) {
   href="/"
   className="flex items-center gap-3 shrink-0 font-heading text-2xl font-bold tracking-[0.22em]"
 >
-          {general.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={general.logo} alt={general.siteName} className="h-10 w-auto" />
-          ) : null}
-          <span>{general.siteName}</span>
+          <img src="/logo.png" alt="CANTEK" className="h-10 w-auto" />
+<span>CANTEK</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-9 text-[13px] font-medium uppercase tracking-[0.14em]">
