@@ -81,7 +81,7 @@ export default function Hero({ data }) {
               </div>
 
               <div>
-                <p className="text-2xl font-bold">24 Saat</p>
+                <p className="text-2xl font-bold">3-5 İş Günü İçinde Kargo</p>
                 <p className="text-sm text-neutral-500">Hızlı Kargo</p>
               </div>
             </motion.div>
