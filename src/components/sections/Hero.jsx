@@ -14,7 +14,6 @@ export default function Hero({ data }) {
 
       <div className="site-container relative z-10 py-16 md:py-24 lg:py-28">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-
           {/* Sol taraf */}
           <div className="max-w-xl">
             <motion.p
@@ -32,7 +31,7 @@ export default function Hero({ data }) {
               transition={{ duration: 0.7 }}
               className="mt-5 text-5xl font-black leading-[0.95] md:text-6xl lg:text-7xl"
             >
-              {"İz Bırakan Adımlar."}
+              İz Bırakan Adımlar.
             </motion.h1>
 
             <motion.p
@@ -55,7 +54,7 @@ export default function Hero({ data }) {
                 href="/category/erkek-ayakkabi"
                 className="group inline-flex items-center gap-2 rounded-full bg-[#111111] px-8 py-4 text-white transition-all duration-300 hover:scale-[1.02]"
               >
-                {"Koleksiyonu İncele"}
+                Koleksiyonu İncele
                 <ArrowRight
                   size={18}
                   className="transition-transform group-hover:translate-x-1"
@@ -81,8 +80,8 @@ export default function Hero({ data }) {
               </div>
 
               <div>
-                <p className="text-2xl font-bold">3-5 İş Günü İçinde Kargo</p>
-                <p className="text-sm text-neutral-500">Hızlı Kargo</p>
+                <p className="text-2xl font-bold">3-5</p>
+                <p className="text-sm text-neutral-500">İş Günü Kargo</p>
               </div>
             </motion.div>
           </div>
@@ -96,23 +95,23 @@ export default function Hero({ data }) {
           >
             <div className="absolute inset-0 rounded-[40px] bg-white shadow-[0_50px_120px_rgba(0,0,0,0.12)]" />
 
-            <div className="relative overflow-hidden rounded-[40px] bg-[#EFE6DB] p-10">
+            <div className="relative overflow-hidden rounded-[40px] bg-[#EFE6DB] p-6">
               <div className="aspect-[4/5] overflow-hidden rounded-[28px] bg-[#F5F2EA]">
-  <img
-    src={data.image || "/hero-shoe.jpg"}
-    alt="CANTEK Hero"
-    className="h-full w-full object-cover"
-  />
-</div>
-            </div>
+                <img
+                  src={data.image || "/hero-shoe.jpg"}
+                  alt="CANTEK Hero"
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
 
-            <div className="absolute -bottom-6 left-8 rounded-2xl bg-white px-6 py-4 shadow-xl">
-              <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">
-                CANTEK
-              </p>
-              <p className="mt-1 font-semibold">
-                Hakiki Deri • Premium İşçilik
-              </p>
+              <div className="absolute bottom-6 left-6 rounded-2xl bg-white/95 backdrop-blur px-6 py-4 shadow-xl">
+                <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">
+                  CANTEK
+                </p>
+                <p className="mt-1 font-semibold">
+                  Hakiki Deri • Premium İşçilik
+                </p>
+              </div>
             </div>
           </motion.div>
         </div>
