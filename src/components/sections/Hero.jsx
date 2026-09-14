@@ -14,7 +14,7 @@ export default function Hero({ data }) {
 
       <div className="site-container relative z-10 py-16 md:py-24 lg:py-28">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-          {/* Sol taraf */}
+          {/* Sol Taraf */}
           <div className="max-w-xl">
             <motion.p
               initial={{ opacity: 0, y: 18 }}
@@ -62,7 +62,7 @@ export default function Hero({ data }) {
               </a>
             </motion.div>
 
-            {/* Alt bilgi */}
+            {/* Alt Bilgi */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -86,7 +86,7 @@ export default function Hero({ data }) {
             </motion.div>
           </div>
 
-          {/* Sağ taraf */}
+          {/* Sağ Taraf */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
@@ -98,9 +98,13 @@ export default function Hero({ data }) {
             <div className="relative overflow-hidden rounded-[40px] bg-[#EFE6DB] p-6">
               <div className="aspect-[4/5] overflow-hidden rounded-[28px] bg-[#F5F2EA]">
                 <img
-                  src={data.image || "/hero-shoe.jpg"}
+                  src={data.image?.trim() ? data.image : "/hero-shoe.jpg"}
                   alt="CANTEK Hero"
                   className="h-full w-full object-cover object-center"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/hero-shoe.jpg";
+                  }}
                 />
               </div>
 
