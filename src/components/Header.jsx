@@ -53,13 +53,11 @@ export default function Header({ settings, menus }) {
         </Link>
 
         <nav className="hidden md:flex items-center gap-9 text-[13px] font-medium uppercase tracking-[0.14em]">
-          {menus
-  .filter((m) => m.label !== "ERKEK")
-  .map((m) => (
-    <Link key={m.id} href={m.url} className="nav-link hover:opacity-80 transition-opacity">
-      {m.label}
-    </Link>
-))}
+          {menus.map((m) => (
+            <Link key={m.id} href={m.url} className="nav-link hover:opacity-80 transition-opacity">
+              {m.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex items-center gap-5">
