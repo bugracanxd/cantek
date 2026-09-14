@@ -104,6 +104,7 @@ export default function Hero({ data }) {
     className="h-full w-full object-cover"
   />
 </div>
+            </div>
 
             <div className="absolute -bottom-6 left-8 rounded-2xl bg-white px-6 py-4 shadow-xl">
               <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">
