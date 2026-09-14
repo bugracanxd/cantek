@@ -11,17 +11,22 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    const res = await signIn("credentials", { ...form, redirect: false });
-    setLoading(false);
-    if (res?.error) {
-      toast.error("E-posta veya şifre hatalı");
-      return;
-    }
-    router.push("/admin");
-    router.refresh();
+  e.preventDefault();
+  setLoading(true);
+
+  const res = await signIn("credentials", {
+    email: form.email,
+    password: form.password,
+    callbackUrl: "/admin",
+    redirect: true,
+  });
+
+  setLoading(false);
+
+  if (res?.error) {
+    toast.error("E-posta veya şifre hatalı");
   }
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
