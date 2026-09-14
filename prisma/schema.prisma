@@ -1,0 +1,223 @@
+// CANTEK e-ticaret veritabanı şeması
+// Local geliştirme için provider = "sqlite" kullanılabilir,
+// production için "postgresql" önerilir (DATABASE_URL .env dosyasında).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+// ---------------- USERS ----------------
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String // "Ev", "İş" vb.
+  fullName  String
+  phone     String
+  city      String
+  district  String
+  fullAddress String
+  zipCode   String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ---------------- CATALOG ----------------
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  image     String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String
+  price           Float
+  discountedPrice Float?
+  sku             String   @unique
+  stock           Int      @default(0)
+  sizes           String // JSON array string: ["40","41","42"]
+  colors          String // JSON array string: ["Siyah","Kahverengi"]
+  brand           String   @default("CANTEK")
+  tags            String? // JSON array string
+  isFeatured      Boolean  @default(false)
+  isNew           Boolean  @default(false)
+  isBestSeller    Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  order           Int      @default(0)
+  seoTitle        String?
+  seoDescription  String?
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  images     ProductImage[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int     @default(0)
+}
+
+// ---------------- ORDERS ----------------
+
+enum PaymentStatus {
+  pending_payment
+  paid
+  payment_failed
+  cancelled
+  refunded
+}
+
+enum OrderStatus {
+  PAYMENT_PENDING
+  PAID
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  orderNumber    String        @unique
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id])
+
+  customerName   String
+  customerEmail  String
+  customerPhone  String
+  shippingAddress String
+
+  subtotal       Float
+  shippingCost   Float         @default(0)
+  discount       Float         @default(0)
+  total          Float
+
+  couponCode     String?
+
+  paymentStatus  PaymentStatus @default(pending_payment)
+  status         OrderStatus   @default(PAYMENT_PENDING)
+
+  paytrMerchantOid String?     @unique
+  paytrProcessed   Boolean     @default(false)
+
+  items          OrderItem[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  name      String
+  size      String
+  color     String?
+  quantity  Int
+  unitPrice Float
+}
+
+// ---------------- MARKETING ----------------
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  type          String // "PERCENT" | "FIXED"
+  value         Float
+  minCartAmount Float    @default(0)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  usageLimit    Int?
+  usedCount     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+// ---------------- SITE DESIGN / CMS ----------------
+
+// Tek satırlık ayar deposu (theme + genel + header + footer + SEO)
+model SiteSettings {
+  id    String @id @default("main")
+  data  String // JSON string - bkz. lib/theme.js için varsayılan şekil
+  draft String? // "Önizle" için taslak JSON, "Yayınla" ile data'ya kopyalanır
+  updatedAt DateTime @updatedAt
+}
+
+model HomepageSection {
+  id        String   @id @default(cuid())
+  type      String // "hero" | "banner" | "product_grid" | "category_grid" | ...
+  title     String?
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  data      String // JSON string - section'a özel alanlar (görsel, buton, link, ürün filtresi vb.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Menu {
+  id        String   @id @default(cuid())
+  label     String
+  url       String
+  location  String   @default("header") // "header" | "footer"
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+}
+
+model Banner {
+  id             String   @id @default(cuid())
+  title          String?
+  description    String?
+  desktopImage   String
+  mobileImage    String?
+  buttonText     String?
+  buttonLink     String?
+  order          Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
