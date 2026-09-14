@@ -97,18 +97,13 @@ export default function Hero({ data }) {
             <div className="absolute inset-0 rounded-[40px] bg-white shadow-[0_50px_120px_rgba(0,0,0,0.12)]" />
 
             <div className="relative overflow-hidden rounded-[40px] bg-[#EFE6DB] p-10">
-              <div className="aspect-[4/5] flex items-center justify-center rounded-[28px] border border-dashed border-neutral-300 bg-[#F5F2EA]">
-                <div className="text-center">
-                  <p className="text-4xl">👞</p>
-                  <p className="mt-3 text-sm text-neutral-500">
-                    Hero Görseli
-                  </p>
-                  <p className="text-xs text-neutral-400">
-                    hero-shoe.jpg sonra eklenecek
-                  </p>
-                </div>
-              </div>
-            </div>
+              <div className="aspect-[4/5] overflow-hidden rounded-[28px] bg-[#F5F2EA]">
+  <img
+    src={data.image || "/hero-shoe.jpg"}
+    alt="CANTEK Hero"
+    className="h-full w-full object-cover"
+  />
+</div>
 
             <div className="absolute -bottom-6 left-8 rounded-2xl bg-white px-6 py-4 shadow-xl">
               <p className="text-xs uppercase tracking-[0.25em] text-neutral-500">
