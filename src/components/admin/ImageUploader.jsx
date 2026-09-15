@@ -10,6 +10,12 @@ export default function ImageUploader({
 }) {
   const [uploading, setUploading] = useState(false);
 
+  // Eski Prisma formatını ({url}) ve yeni string formatını tek tipe çevir
+  const normalize = (list = []) =>
+    list
+      .map((img) => (typeof img === "string" ? img : img?.url))
+      .filter(Boolean);
+
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -23,7 +29,6 @@ export default function ImageUploader({
         const fd = new FormData();
         fd.append("file", file);
 
-        // Cloudinary API
         const res = await fetch("/api/upload", {
           method: "POST",
           body: fd,
@@ -36,8 +41,10 @@ export default function ImageUploader({
         uploaded.push(data.url);
       }
 
+      const current = normalize(images);
+
       if (multiple) {
-        onChange([...(images || []), ...uploaded]);
+        onChange([...current, ...uploaded]);
       } else {
         onChange(uploaded[0]);
       }
@@ -49,10 +56,10 @@ export default function ImageUploader({
   }
 
   function removeImage(url) {
-    onChange((images || []).filter((i) => i !== url));
+    onChange(normalize(images).filter((i) => i !== url));
   }
 
-  const list = multiple ? images || [] : images ? [images] : [];
+  const list = normalize(multiple ? images : images ? [images] : []);
 
   return (
     <div>
