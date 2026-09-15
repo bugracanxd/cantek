@@ -17,14 +17,14 @@ export default function ProductCard({ product, index = 0 }) {
       transition={{ duration: 0.45, delay: Math.min(index * 0.05, 0.3) }}
     >
       <Link href={`/products/${product.slug}`} className="group block">
-        <div className="overflow-hidden rounded-[28px] bg-[#F5F2EA] transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-2xl">
+        <div className="overflow-hidden rounded-[28px] bg-[#F4F1EA] transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
 
           {/* Görsel */}
-          <div className="relative aspect-[4/5] bg-[#F7F4ED] overflow-hidden flex items-center justify-center">
+          <div className="relative aspect-[4/5] overflow-hidden bg-[#F4F1EA]">
             <img
               src={img}
               alt={product.name}
-              className="w-[92%] h-[92%] object-contain transition-transform duration-700 group-hover:scale-105"
+              className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
             />
 
             {product.isNew && (
@@ -41,7 +41,7 @@ export default function ProductCard({ product, index = 0 }) {
             )}
           </div>
 
-          {/* İçerik */}
+          {/* Bilgiler */}
           <div className="p-5">
             <p className="text-[11px] uppercase tracking-[0.28em] text-neutral-400">
               CANTEK
