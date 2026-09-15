@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 
 export default function ImageUploader({
@@ -9,16 +9,11 @@ export default function ImageUploader({
   multiple = true,
 }) {
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState([]);
 
   const normalize = (list = []) =>
     list
-      .map((img) => (typeof img === "string" ? img : img?.url))
+      .map((i) => (typeof i === "string" ? i : i?.url))
       .filter(Boolean);
-
-  useEffect(() => {
-    setPreview(normalize(multiple ? images : images ? [images] : []));
-  }, [images, multiple]);
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []);
@@ -42,21 +37,15 @@ export default function ImageUploader({
 
         if (!res.ok) throw new Error(data.error || "Yükleme başarısız");
 
-        const url = data.url || data.secure_url;
-
-        if (!url) throw new Error("Upload URL dönmedi");
-
-        uploaded.push(url);
+        uploaded.push(data.url);
       }
 
-      const next = multiple
-        ? [...normalize(images), ...uploaded]
-        : [uploaded[0]];
+      const current = normalize(images);
 
-      setPreview(next);
-      onChange(multiple ? next : next[0]);
+      onChange(multiple ? [...current, ...uploaded] : uploaded[0]);
 
-      toast.success("Görsel yüklendi");
+      // Aynı dosyayı tekrar seçebilsin
+      e.target.value = "";
     } catch (err) {
       toast.error(err.message || "Yükleme başarısız");
     } finally {
@@ -65,33 +54,36 @@ export default function ImageUploader({
   }
 
   function removeImage(url) {
-    const next = preview.filter((i) => i !== url);
-    setPreview(next);
-    onChange(multiple ? next : next[0] || "");
+    onChange(normalize(images).filter((i) => i !== url));
   }
+
+  const list = normalize(multiple ? images : images ? [images] : []);
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-3">
-        {preview.map((url) => (
-          <div key={url} className="relative h-20 w-20">
-            <img
-              src={url}
-              alt=""
-              className="h-full w-full rounded-lg border object-cover"
-            />
-            {multiple && (
-              <button
-                type="button"
-                onClick={() => removeImage(url)}
-                className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-red-600 text-xs text-white"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
+      {list.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-3">
+          {list.map((url) => (
+            <div key={url} className="relative h-20 w-20">
+              <img
+                src={url}
+                alt=""
+                className="h-full w-full rounded-lg border object-cover"
+              />
+
+              {multiple && (
+                <button
+                  type="button"
+                  onClick={() => removeImage(url)}
+                  className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-red-600 text-xs text-white"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <input
         type="file"
