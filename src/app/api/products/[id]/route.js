@@ -40,7 +40,12 @@ export async function PUT(req, { params }) {
     );
   }
 
-  const { images = [], sizes, colors, ...rest } = parsed.data;
+  let { images = [], sizes, colors, ...rest } = parsed.data;
+
+  // String ve {url} formatlarını tek tipe çevir
+  images = (images || [])
+    .map((img) => (typeof img === "string" ? img : img?.url))
+    .filter(Boolean);
 
   await prisma.$transaction(async (tx) => {
     await tx.product.update({
@@ -60,7 +65,7 @@ export async function PUT(req, { params }) {
       where: { productId: params.id },
     });
 
-    if (images.length > 0) {
+    if (images.length) {
       await tx.productImage.createMany({
         data: images.map((url, index) => ({
           productId: params.id,
