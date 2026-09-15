@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
 export default function ImageUploader({
@@ -9,16 +9,20 @@ export default function ImageUploader({
   multiple = true,
 }) {
   const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState([]);
 
-  // Eski Prisma formatını ({url}) ve yeni string formatını tek tipe çevir
   const normalize = (list = []) =>
     list
       .map((img) => (typeof img === "string" ? img : img?.url))
       .filter(Boolean);
 
+  useEffect(() => {
+    setPreview(normalize(multiple ? images : images ? [images] : []));
+  }, [images, multiple]);
+
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    if (!files.length) return;
 
     setUploading(true);
 
@@ -38,16 +42,21 @@ export default function ImageUploader({
 
         if (!res.ok) throw new Error(data.error || "Yükleme başarısız");
 
-        uploaded.push(data.url);
+        const url = data.url || data.secure_url;
+
+        if (!url) throw new Error("Upload URL dönmedi");
+
+        uploaded.push(url);
       }
 
-      const current = normalize(images);
+      const next = multiple
+        ? [...normalize(images), ...uploaded]
+        : [uploaded[0]];
 
-      if (multiple) {
-        onChange([...current, ...uploaded]);
-      } else {
-        onChange(uploaded[0]);
-      }
+      setPreview(next);
+      onChange(multiple ? next : next[0]);
+
+      toast.success("Görsel yüklendi");
     } catch (err) {
       toast.error(err.message || "Yükleme başarısız");
     } finally {
@@ -56,15 +65,15 @@ export default function ImageUploader({
   }
 
   function removeImage(url) {
-    onChange(normalize(images).filter((i) => i !== url));
+    const next = preview.filter((i) => i !== url);
+    setPreview(next);
+    onChange(multiple ? next : next[0] || "");
   }
-
-  const list = normalize(multiple ? images : images ? [images] : []);
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-3">
-        {list.map((url) => (
+        {preview.map((url) => (
           <div key={url} className="relative h-20 w-20">
             <img
               src={url}
