@@ -5,7 +5,12 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 
 export default function ProductCard({ product, index = 0 }) {
-  const img = product.images?.[0]?.url || "/uploads/product-placeholder.svg";
+  // Hem eski ({ url }) hem yeni (string) formatı destekler
+  const img =
+    typeof product.images?.[0] === "string"
+      ? product.images[0]
+      : product.images?.[0]?.url || "/uploads/product-placeholder.svg";
+
   const hasDiscount =
     product.discountedPrice && product.discountedPrice < product.price;
 
