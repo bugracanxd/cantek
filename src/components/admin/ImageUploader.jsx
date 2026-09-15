@@ -3,7 +3,11 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 
-export default function ImageUploader({ images, onChange, multiple = true }) {
+export default function ImageUploader({
+  images = [],
+  onChange,
+  multiple = true,
+}) {
   const [uploading, setUploading] = useState(false);
 
   async function handleFiles(e) {
@@ -19,7 +23,8 @@ export default function ImageUploader({ images, onChange, multiple = true }) {
         const fd = new FormData();
         fd.append("file", file);
 
-        const res = await fetch("/api/admin/upload", {
+        // Cloudinary API
+        const res = await fetch("/api/upload", {
           method: "POST",
           body: fd,
         });
@@ -31,7 +36,11 @@ export default function ImageUploader({ images, onChange, multiple = true }) {
         uploaded.push(data.url);
       }
 
-      onChange(multiple ? [...images, ...uploaded] : uploaded[0]);
+      if (multiple) {
+        onChange([...(images || []), ...uploaded]);
+      } else {
+        onChange(uploaded[0]);
+      }
     } catch (err) {
       toast.error(err.message || "Yükleme başarısız");
     } finally {
@@ -40,26 +49,26 @@ export default function ImageUploader({ images, onChange, multiple = true }) {
   }
 
   function removeImage(url) {
-    onChange(images.filter((i) => i !== url));
+    onChange((images || []).filter((i) => i !== url));
   }
 
-  const list = multiple ? images : images ? [images] : [];
+  const list = multiple ? images || [] : images ? [images] : [];
 
   return (
     <div>
-      <div className="flex flex-wrap gap-3 mb-3">
+      <div className="mb-3 flex flex-wrap gap-3">
         {list.map((url) => (
-          <div key={url} className="relative w-20 h-20">
+          <div key={url} className="relative h-20 w-20">
             <img
               src={url}
               alt=""
-              className="w-full h-full object-cover rounded-lg border"
+              className="h-full w-full rounded-lg border object-cover"
             />
             {multiple && (
               <button
                 type="button"
                 onClick={() => removeImage(url)}
-                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs"
+                className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-red-600 text-xs text-white"
               >
                 ✕
               </button>
@@ -77,7 +86,7 @@ export default function ImageUploader({ images, onChange, multiple = true }) {
       />
 
       {uploading && (
-        <p className="text-xs text-gray-500 mt-1">Yükleniyor...</p>
+        <p className="mt-1 text-xs text-gray-500">Yükleniyor...</p>
       )}
     </div>
   );
