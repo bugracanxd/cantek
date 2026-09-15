@@ -30,7 +30,7 @@ export async function PUT(req, { params }) {
   if (sizes) data.sizes = JSON.stringify(sizes);
   if (colors) data.colors = JSON.stringify(colors);
 
-  if (images) {
+  if (images !== undefined) {
     await prisma.productImage.deleteMany({ where: { productId: params.id } });
     data.images = { create: images.map((url, i) => ({ url, order: i })) };
   }
