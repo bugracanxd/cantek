@@ -40,33 +40,42 @@ export async function PUT(req, { params }) {
     );
   }
 
-  const { images, sizes, colors, ...rest } = parsed.data;
+  const { images = [], sizes, colors, ...rest } = parsed.data;
 
-  const product = await prisma.product.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id: params.id },
+      data: {
+        ...rest,
+        ...(sizes !== undefined && {
+          sizes: JSON.stringify(sizes),
+        }),
+        ...(colors !== undefined && {
+          colors: JSON.stringify(colors),
+        }),
+      },
+    });
+
+    await tx.productImage.deleteMany({
+      where: { productId: params.id },
+    });
+
+    if (images.length > 0) {
+      await tx.productImage.createMany({
+        data: images.map((url, index) => ({
+          productId: params.id,
+          url,
+          order: index,
+        })),
+      });
+    }
+  });
+
+  const product = await prisma.product.findUnique({
     where: { id: params.id },
-    data: {
-      ...rest,
-
-      ...(sizes !== undefined && {
-        sizes: JSON.stringify(sizes),
-      }),
-
-      ...(colors !== undefined && {
-        colors: JSON.stringify(colors),
-      }),
-
-      ...(images !== undefined && {
-        images: {
-          deleteMany: {},
-          create: images.map((url, index) => ({
-            url,
-            order: index,
-          })),
-        },
-      }),
-    },
     include: {
       images: { orderBy: { order: "asc" } },
+      category: true,
     },
   });
 
