@@ -1,11 +1,8 @@
 import crypto from "crypto";
 
 /**
- * PAYTR iFrame API entegrasyonu (resmi dokümantasyona göre).
- * https://dev.paytr.com/iframe-api
- *
- * Bu modül SADECE server tarafında (API route'ları içinden) çağrılmalı.
- * Merchant key/salt hiçbir zaman client'a gönderilmez.
+ * PAYTR iFrame API entegrasyonu
+ * Server tarafında çalıştırılmalıdır.
  */
 
 const PAYTR_TOKEN_URL = "https://www.paytr.com/odeme/api/get-token";
@@ -18,32 +15,86 @@ function getEnv() {
 
   if (!merchantId || !merchantKey || !merchantSalt) {
     throw new Error(
-      "PAYTR bilgileri eksik: .env dosyasında PAYTR_MERCHANT_ID, PAYTR_MERCHANT_KEY, PAYTR_MERCHANT_SALT tanımlı olmalı."
+      "PAYTR bilgileri eksik: PAYTR_MERCHANT_ID, PAYTR_MERCHANT_KEY ve PAYTR_MERCHANT_SALT tanımlı olmalı."
     );
   }
-  return { merchantId, merchantKey, merchantSalt, testMode };
+
+  return {
+    merchantId,
+    merchantKey,
+    merchantSalt,
+    testMode,
+  };
 }
 
-// PAYTR sipariş numarası sadece harf/rakamdan oluşmalı (özel karakter yasak)
+// PAYTR merchant_oid sadece harf ve rakamlardan oluşmalı
 export function toMerchantOid(orderNumber) {
-  return orderNumber.replace(/[^a-zA-Z0-9]/g, "");
+  return String(orderNumber).replace(/[^a-zA-Z0-9]/g, "");
 }
 
 /**
- * PAYTR'den iframe token'ı alır. order: bizim Order kaydımız,
- * userBasket: [[ürün adı, birim fiyat(TL string), adet], ...]
+ * PAYTR iframe token oluşturur.
  */
-export async function createPaytrToken({ order, userIp, userBasket, noInstallment = 0, maxInstallment = 0 }) {
-  const { merchantId, merchantKey, merchantSalt, testMode } = getEnv();
+export async function createPaytrToken({
+  order,
+  userIp,
+  userBasket,
+  noInstallment = 0,
+  maxInstallment = 0,
+}) {
+  const {
+    merchantId,
+    merchantKey,
+    merchantSalt,
+    testMode,
+  } = getEnv();
+
+  // Site adresi
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+
+  if (!siteUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL eksik. Vercel Environment Variables bölümüne sitenin tam adresini ekleyin."
+    );
+  }
 
   const merchantOid = toMerchantOid(order.orderNumber);
-  // PAYTR "kuruş" cinsinden tam sayı bekler
-  const paymentAmount = Math.round(order.total * 100);
-  const basketJson = Buffer.from(JSON.stringify(userBasket)).toString("base64");
 
-  const merchantOkUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?order=${order.orderNumber}`;
-  const merchantFailUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/failed?order=${order.orderNumber}`;
+  // PAYTR kuruş cinsinden tutar bekler
+  const paymentAmount = Math.round(Number(order.total) * 100);
 
+  // Sepeti Base64 formatına çevir
+  const basketJson = Buffer.from(
+    JSON.stringify(userBasket)
+  ).toString("base64");
+
+  const merchantOkUrl =
+    `${siteUrl}/checkout/success?order=${encodeURIComponent(
+      order.orderNumber
+    )}`;
+
+  const merchantFailUrl =
+    `${siteUrl}/checkout/failed?order=${encodeURIComponent(
+      order.orderNumber
+    )}`;
+
+  const currency = "TL";
+
+  /*
+   * PAYTR token hash
+   *
+   * merchant_id
+   * + user_ip
+   * + merchant_oid
+   * + email
+   * + payment_amount
+   * + user_basket
+   * + no_installment
+   * + max_installment
+   * + currency
+   * + test_mode
+   * + merchant_salt
+   */
   const hashStr =
     merchantId +
     userIp +
@@ -53,6 +104,7 @@ export async function createPaytrToken({ order, userIp, userBasket, noInstallmen
     basketJson +
     noInstallment +
     maxInstallment +
+    currency +
     testMode;
 
   const paytrToken = crypto
@@ -60,50 +112,86 @@ export async function createPaytrToken({ order, userIp, userBasket, noInstallmen
     .update(hashStr + merchantSalt)
     .digest("base64");
 
+  // PAYTR'ye gönderilecek bilgiler
   const body = new URLSearchParams({
     merchant_id: merchantId,
     user_ip: userIp,
     merchant_oid: merchantOid,
     email: order.customerEmail,
     payment_amount: String(paymentAmount),
+
     paytr_token: paytrToken,
+
     user_basket: basketJson,
+
     debug_on: "1",
+
     no_installment: String(noInstallment),
     max_installment: String(maxInstallment),
-    user_name: order.customerName,
-    user_address: order.shippingAddress,
-    user_phone: order.customerPhone,
+
+    user_name: order.customerName || "",
+    user_address: order.shippingAddress || "",
+    user_phone: order.customerPhone || "",
+
+    // Ödeme başarılı olduğunda
     merchant_ok_url: merchantOkUrl,
+
+    // Ödeme başarısız olduğunda
     merchant_fail_url: merchantFailUrl,
+
     timeout_limit: "30",
-    currency: "TL",
+
+    currency,
+
     test_mode: testMode,
   });
 
   const res = await fetch(PAYTR_TOKEN_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
     body: body.toString(),
   });
 
   const json = await res.json();
+
   if (json.status !== "success") {
-    throw new Error(`PAYTR token hatası: ${json.reason || "bilinmeyen hata"}`);
+    throw new Error(
+      `PAYTR token hatası: ${
+        json.reason || "bilinmeyen hata"
+      }`
+    );
   }
-  return { token: json.token, merchantOid };
+
+  return {
+    token: json.token,
+    merchantOid,
+  };
 }
 
 /**
- * PAYTR callback (notification) doğrulaması.
- * PAYTR bu endpoint'e POST ile bildirim gönderir; biz hash'i doğrulayıp
- * "OK" düz metni döndürmek ZORUNDAYIZ, aksi halde PAYTR tekrar tekrar dener.
+ * PAYTR callback doğrulaması.
  */
 export function verifyPaytrCallback(params) {
-  const { merchantKey, merchantSalt } = getEnv();
-  const { merchant_oid, status, total_amount, hash } = params;
+  const {
+    merchantKey,
+    merchantSalt,
+  } = getEnv();
 
-  const calculatedHashStr = merchant_oid + merchantSalt + status + total_amount;
+  const {
+    merchant_oid,
+    status,
+    total_amount,
+    hash,
+  } = params;
+
+  const calculatedHashStr =
+    merchant_oid +
+    merchantSalt +
+    status +
+    total_amount;
+
   const calculatedHash = crypto
     .createHmac("sha256", merchantKey)
     .update(calculatedHashStr)
