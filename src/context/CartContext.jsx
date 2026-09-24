@@ -152,6 +152,7 @@ export function CartProvider({ children }) {
       return false;
     }
 
+    setCouponCode(normalizedCode);
     setCouponLoading(true);
     setCouponError("");
 
