@@ -7,7 +7,9 @@ import ImageUploader from "./ImageUploader";
 
 export default function ProductForm({ initial, productId }) {
   const router = useRouter();
+
   const [categories, setCategories] = useState([]);
+
   const [form, setForm] = useState(
     initial || {
       name: "",
@@ -19,7 +21,7 @@ export default function ProductForm({ initial, productId }) {
       stock: 0,
       sizes: "40,41,42,43,44",
       colors: "Siyah,Kahverengi",
-      categoryId: "",
+      categoryIds: [],
       images: [],
       isFeatured: false,
       isNew: false,
@@ -29,6 +31,7 @@ export default function ProductForm({ initial, productId }) {
       seoDescription: "",
     }
   );
+
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -37,11 +40,13 @@ export default function ProductForm({ initial, productId }) {
       .then((d) => setCategories(d.categories || []));
   }, []);
 
-  // ✅ DÜZELTME: initial sonradan gelince formu güncelle
   useEffect(() => {
     if (initial) {
       setForm({
         ...initial,
+        categoryIds: initial.categories
+          ? initial.categories.map((c) => c.category.id)
+          : [],
         images: Array.isArray(initial.images)
           ? initial.images
           : initial.images
@@ -67,21 +72,25 @@ export default function ProductForm({ initial, productId }) {
       stock: Number(form.stock),
       sizes: form.sizes.split(",").map((s) => s.trim()).filter(Boolean),
       colors: form.colors.split(",").map((s) => s.trim()).filter(Boolean),
-      categoryId: form.categoryId || null,
+      categoryIds: form.categoryIds,
     };
 
     const url = productId
       ? `/api/products/${productId}`
       : "/api/products";
+
     const method = productId ? "PUT" : "POST";
 
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
     const data = await res.json();
+
     setLoading(false);
 
     if (!res.ok) {
@@ -94,17 +103,26 @@ export default function ProductForm({ initial, productId }) {
     router.refresh();
   }
 
+  const toggleCategory = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      categoryIds: prev.categoryIds.includes(id)
+        ? prev.categoryIds.filter((c) => c !== id)
+        : [...prev.categoryIds, id],
+    }));
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 max-w-2xl bg-white p-6 rounded-xl shadow-sm"
+      className="space-y-4 max-w-2xl rounded-xl bg-white p-6 shadow-sm"
     >
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">Ürün Adı</label>
           <input
             required
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.name}
             onChange={(e) =>
               setForm({ ...form, name: e.target.value })
@@ -116,7 +134,7 @@ export default function ProductForm({ initial, productId }) {
           <label className="text-sm font-medium">Slug (URL)</label>
           <input
             required
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.slug}
             onChange={(e) =>
               setForm({ ...form, slug: e.target.value })
@@ -130,10 +148,13 @@ export default function ProductForm({ initial, productId }) {
         <textarea
           required
           rows={4}
-          className="w-full border rounded-lg px-3 py-2 mt-1"
+          className="mt-1 w-full rounded-lg border px-3 py-2"
           value={form.description}
           onChange={(e) =>
-            setForm({ ...form, description: e.target.value })
+            setForm({
+              ...form,
+              description: e.target.value,
+            })
           }
         />
       </div>
@@ -145,7 +166,7 @@ export default function ProductForm({ initial, productId }) {
             required
             type="number"
             step="0.01"
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.price}
             onChange={(e) =>
               setForm({ ...form, price: e.target.value })
@@ -154,11 +175,13 @@ export default function ProductForm({ initial, productId }) {
         </div>
 
         <div>
-          <label className="text-sm font-medium">İndirimli Fiyat</label>
+          <label className="text-sm font-medium">
+            İndirimli Fiyat
+          </label>
           <input
             type="number"
             step="0.01"
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.discountedPrice || ""}
             onChange={(e) =>
               setForm({
@@ -174,7 +197,7 @@ export default function ProductForm({ initial, productId }) {
           <input
             required
             type="number"
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.stock}
             onChange={(e) =>
               setForm({ ...form, stock: e.target.value })
@@ -188,7 +211,7 @@ export default function ProductForm({ initial, productId }) {
           <label className="text-sm font-medium">SKU</label>
           <input
             required
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.sku}
             onChange={(e) =>
               setForm({ ...form, sku: e.target.value })
@@ -197,21 +220,27 @@ export default function ProductForm({ initial, productId }) {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Kategori</label>
-          <select
-            className="w-full border rounded-lg px-3 py-2 mt-1"
-            value={form.categoryId}
-            onChange={(e) =>
-              setForm({ ...form, categoryId: e.target.value })
-            }
-          >
-            <option value="">Kategori seçin</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <label className="text-sm font-medium">
+            Kategoriler
+          </label>
+
+          <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border p-3">
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.categoryIds.includes(c.id)}
+                    onChange={() => toggleCategory(c.id)}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -221,7 +250,7 @@ export default function ProductForm({ initial, productId }) {
             Bedenler (virgülle ayırın)
           </label>
           <input
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.sizes}
             onChange={(e) =>
               setForm({ ...form, sizes: e.target.value })
@@ -234,7 +263,7 @@ export default function ProductForm({ initial, productId }) {
             Renkler (virgülle ayırın)
           </label>
           <input
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.colors}
             onChange={(e) =>
               setForm({ ...form, colors: e.target.value })
@@ -244,12 +273,18 @@ export default function ProductForm({ initial, productId }) {
       </div>
 
       <div>
-        <label className="text-sm font-medium">Ürün Görselleri</label>
+        <label className="text-sm font-medium">
+          Ürün Görselleri
+        </label>
+
         <div className="mt-1">
           <ImageUploader
             images={form.images}
             onChange={(images) =>
-              setForm((prev) => ({ ...prev, images }))
+              setForm((prev) => ({
+                ...prev,
+                images,
+              }))
             }
           />
         </div>
@@ -275,7 +310,10 @@ export default function ProductForm({ initial, productId }) {
             type="checkbox"
             checked={form.isNew}
             onChange={(e) =>
-              setForm({ ...form, isNew: e.target.checked })
+              setForm({
+                ...form,
+                isNew: e.target.checked,
+              })
             }
           />
           Yeni Ürün
@@ -300,7 +338,10 @@ export default function ProductForm({ initial, productId }) {
             type="checkbox"
             checked={form.isActive}
             onChange={(e) =>
-              setForm({ ...form, isActive: e.target.checked })
+              setForm({
+                ...form,
+                isActive: e.target.checked,
+              })
             }
           />
           Aktif
@@ -309,20 +350,27 @@ export default function ProductForm({ initial, productId }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium">SEO Başlık</label>
+          <label className="text-sm font-medium">
+            SEO Başlık
+          </label>
           <input
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.seoTitle}
             onChange={(e) =>
-              setForm({ ...form, seoTitle: e.target.value })
+              setForm({
+                ...form,
+                seoTitle: e.target.value,
+              })
             }
           />
         </div>
 
         <div>
-          <label className="text-sm font-medium">SEO Açıklama</label>
+          <label className="text-sm font-medium">
+            SEO Açıklama
+          </label>
           <input
-            className="w-full border rounded-lg px-3 py-2 mt-1"
+            className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.seoDescription}
             onChange={(e) =>
               setForm({
@@ -336,7 +384,7 @@ export default function ProductForm({ initial, productId }) {
 
       <button
         disabled={loading}
-        className="bg-black text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50"
+        className="rounded-lg bg-black px-6 py-3 font-medium text-white disabled:opacity-50"
       >
         {loading ? "Kaydediliyor..." : "Kaydet"}
       </button>
