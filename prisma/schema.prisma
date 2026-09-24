@@ -1,15 +1,14 @@
 // CANTEK e-ticaret veritabanı şeması
-// Local geliştirme için provider = "sqlite" kullanılabilir,
-// production için "postgresql" önerilir (DATABASE_URL .env dosyasında).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
 // ---------------- USERS ----------------
 
 enum Role {
@@ -32,18 +31,18 @@ model User {
 }
 
 model Address {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String // "Ev", "İş" vb.
-  fullName  String
-  phone     String
-  city      String
-  district  String
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  fullName    String
+  phone       String
+  city        String
+  district    String
   fullAddress String
-  zipCode   String?
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
+  zipCode     String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 // ---------------- CATALOG ----------------
@@ -58,7 +57,7 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products Product[]
+  products ProductCategory[]
 }
 
 model Product {
@@ -70,10 +69,10 @@ model Product {
   discountedPrice Float?
   sku             String   @unique
   stock           Int      @default(0)
-  sizes           String // JSON array string: ["40","41","42"]
-  colors          String // JSON array string: ["Siyah","Kahverengi"]
+  sizes           String
+  colors          String
   brand           String   @default("CANTEK")
-  tags            String? // JSON array string
+  tags            String?
   isFeatured      Boolean  @default(false)
   isNew           Boolean  @default(false)
   isBestSeller    Boolean  @default(false)
@@ -82,14 +81,23 @@ model Product {
   seoTitle        String?
   seoDescription  String?
 
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  categories ProductCategory[]
 
   images     ProductImage[]
   orderItems OrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ProductCategory {
+  productId  String
+  categoryId String
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([productId, categoryId])
 }
 
 model ProductImage {
@@ -121,33 +129,33 @@ enum OrderStatus {
 }
 
 model Order {
-  id             String        @id @default(cuid())
-  orderNumber    String        @unique
-  userId         String?
-  user           User?         @relation(fields: [userId], references: [id])
+  id               String        @id @default(cuid())
+  orderNumber      String        @unique
+  userId           String?
+  user             User?         @relation(fields: [userId], references: [id])
 
-  customerName   String
-  customerEmail  String
-  customerPhone  String
-  shippingAddress String
+  customerName     String
+  customerEmail    String
+  customerPhone    String
+  shippingAddress  String
 
-  subtotal       Float
-  shippingCost   Float         @default(0)
-  discount       Float         @default(0)
-  total          Float
+  subtotal         Float
+  shippingCost     Float         @default(0)
+  discount         Float         @default(0)
+  total            Float
 
-  couponCode     String?
+  couponCode       String?
 
-  paymentStatus  PaymentStatus @default(pending_payment)
-  status         OrderStatus   @default(PAYMENT_PENDING)
+  paymentStatus    PaymentStatus @default(pending_payment)
+  status           OrderStatus   @default(PAYMENT_PENDING)
 
-  paytrMerchantOid String?     @unique
-  paytrProcessed   Boolean     @default(false)
+  paytrMerchantOid String?       @unique
+  paytrProcessed   Boolean       @default(false)
 
-  items          OrderItem[]
+  items            OrderItem[]
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 }
 
 model OrderItem {
@@ -168,7 +176,7 @@ model OrderItem {
 model Coupon {
   id            String   @id @default(cuid())
   code          String   @unique
-  type          String // "PERCENT" | "FIXED"
+  type          String
   value         Float
   minCartAmount Float    @default(0)
   startsAt      DateTime?
@@ -181,21 +189,20 @@ model Coupon {
 
 // ---------------- SITE DESIGN / CMS ----------------
 
-// Tek satırlık ayar deposu (theme + genel + header + footer + SEO)
 model SiteSettings {
-  id    String @id @default("main")
-  data  String // JSON string - bkz. lib/theme.js için varsayılan şekil
-  draft String? // "Önizle" için taslak JSON, "Yayınla" ile data'ya kopyalanır
+  id        String   @id @default("main")
+  data      String
+  draft     String?
   updatedAt DateTime @updatedAt
 }
 
 model HomepageSection {
   id        String   @id @default(cuid())
-  type      String // "hero" | "banner" | "product_grid" | "category_grid" | ...
+  type      String
   title     String?
   isActive  Boolean  @default(true)
   order     Int      @default(0)
-  data      String // JSON string - section'a özel alanlar (görsel, buton, link, ürün filtresi vb.)
+  data      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -204,20 +211,20 @@ model Menu {
   id        String   @id @default(cuid())
   label     String
   url       String
-  location  String   @default("header") // "header" | "footer"
+  location  String   @default("header")
   order     Int      @default(0)
   isActive  Boolean  @default(true)
 }
 
 model Banner {
-  id             String   @id @default(cuid())
-  title          String?
-  description    String?
-  desktopImage   String
-  mobileImage    String?
-  buttonText     String?
-  buttonLink     String?
-  order          Int      @default(0)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  title        String?
+  description  String?
+  desktopImage String
+  mobileImage  String?
+  buttonText   String?
+  buttonLink   String?
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
 }
