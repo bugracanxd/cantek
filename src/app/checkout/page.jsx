@@ -30,7 +30,14 @@ export default function CheckoutPage() {
 
     script.onload = () => {
       if (window.iFrameResize) {
-        window.iFrameResize({}, "#paytriframe");
+        window.iFrameResize(
+          {
+            checkOrigin: false,
+            scrolling: true,
+            heightCalculationMethod: "bodyScroll",
+          },
+          "#paytriframe"
+        );
       }
     };
 
@@ -102,7 +109,7 @@ export default function CheckoutPage() {
   if (iframeToken) {
     return (
       <div className="fixed inset-0 z-[9999] bg-white h-[100dvh] overflow-auto">
-        <div className="site-container py-4 h-full flex flex-col">
+        <div className="site-container py-4">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-xl font-bold">Güvenli Ödeme</h1>
 
@@ -114,21 +121,19 @@ export default function CheckoutPage() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-hidden rounded-xl border">
-            <iframe
-              id="paytriframe"
-              src={`https://www.paytr.com/odeme/guvenli/${iframeToken}`}
-              title="PAYTR Güvenli Ödeme"
-              frameBorder="0"
-              scrolling="yes"
-              allow="payment *"
-              className="w-full h-full border-0"
-              style={{
-                height: "calc(100dvh - 90px)",
-                minHeight: "720px",
-              }}
-            />
-          </div>
+          <iframe
+            id="paytriframe"
+            src={`https://www.paytr.com/odeme/guvenli/${iframeToken}`}
+            title="PAYTR Güvenli Ödeme"
+            frameBorder="0"
+            scrolling="yes"
+            allow="payment *"
+            className="w-full rounded-xl border-0"
+            style={{
+              width: "100%",
+              minHeight: "1200px",
+            }}
+          />
         </div>
       </div>
     );
