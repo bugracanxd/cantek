@@ -1,26 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useCart } from "@/context/CartContext";
 
 export default function CheckoutPage() {
-  const { items, subtotal, clearCart } = useCart();
+  const {
+    items,
+    subtotal,
+    discount,
+    shippingCost,
+    total,
+    couponCode,
+    clearCart,
+  } = useCart();
+
   const { data: session } = useSession();
-  const router = useRouter();
 
   const [form, setForm] = useState({
-    customerName: session?.user?.name || "",
-    customerEmail: session?.user?.email || "",
+    customerName: "",
+    customerEmail: "",
     customerPhone: "",
     shippingAddress: "",
-    couponCode: "",
+    couponCode: couponCode || "",
   });
 
   const [loading, setLoading] = useState(false);
   const [iframeToken, setIframeToken] = useState(null);
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      customerName: session?.user?.name || prev.customerName,
+      customerEmail: session?.user?.email || prev.customerEmail,
+    }));
+  }, [session]);
+
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      couponCode,
+    }));
+  }, [couponCode]);
 
   useEffect(() => {
     if (!iframeToken) return;
@@ -43,9 +65,7 @@ export default function CheckoutPage() {
 
     document.body.appendChild(script);
 
-    return () => {
-      document.body.removeChild(script);
-    };
+    return () => document.body.removeChild(script);
   }, [iframeToken]);
 
   async function handleSubmit(e) {
@@ -141,13 +161,8 @@ export default function CheckoutPage() {
 
   return (
     <div className="site-container py-10 grid md:grid-cols-3 gap-10">
-      <form
-        onSubmit={handleSubmit}
-        className="md:col-span-2 space-y-4"
-      >
-        <h1 className="text-2xl font-bold mb-2">
-          Teslimat Bilgileri
-        </h1>
+      <form onSubmit={handleSubmit} className="md:col-span-2 space-y-4">
+        <h1 className="text-2xl font-bold mb-2">Teslimat Bilgileri</h1>
 
         <input
           type="text"
@@ -156,10 +171,7 @@ export default function CheckoutPage() {
           className="w-full border px-4 py-3 rounded-site"
           value={form.customerName}
           onChange={(e) =>
-            setForm({
-              ...form,
-              customerName: e.target.value,
-            })
+            setForm({ ...form, customerName: e.target.value })
           }
         />
 
@@ -170,10 +182,7 @@ export default function CheckoutPage() {
           className="w-full border px-4 py-3 rounded-site"
           value={form.customerEmail}
           onChange={(e) =>
-            setForm({
-              ...form,
-              customerEmail: e.target.value,
-            })
+            setForm({ ...form, customerEmail: e.target.value })
           }
         />
 
@@ -184,10 +193,7 @@ export default function CheckoutPage() {
           className="w-full border px-4 py-3 rounded-site"
           value={form.customerPhone}
           onChange={(e) =>
-            setForm({
-              ...form,
-              customerPhone: e.target.value,
-            })
+            setForm({ ...form, customerPhone: e.target.value })
           }
         />
 
@@ -198,24 +204,16 @@ export default function CheckoutPage() {
           className="w-full border px-4 py-3 rounded-site"
           value={form.shippingAddress}
           onChange={(e) =>
-            setForm({
-              ...form,
-              shippingAddress: e.target.value,
-            })
+            setForm({ ...form, shippingAddress: e.target.value })
           }
         />
 
         <input
           type="text"
-          placeholder="Kupon kodu (opsiyonel)"
-          className="w-full border px-4 py-3 rounded-site"
+          placeholder="Kupon kodu"
+          className="w-full border px-4 py-3 rounded-site bg-gray-50"
           value={form.couponCode}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              couponCode: e.target.value,
-            })
-          }
+          readOnly
         />
 
         <button
@@ -227,33 +225,39 @@ export default function CheckoutPage() {
       </form>
 
       <div className="border rounded-site p-6 h-fit">
-        <h2 className="font-semibold mb-4">
-          Sipariş Özeti
-        </h2>
+        <h2 className="font-semibold mb-4">Sipariş Özeti</h2>
 
         {items.map((item, i) => (
-          <div
-            key={i}
-            className="flex justify-between text-sm mb-2"
-          >
+          <div key={i} className="flex justify-between text-sm mb-2">
             <span>
               {item.name} x{item.quantity}
             </span>
 
-            <span>
-              {(item.price * item.quantity).toFixed(2)} ₺
-            </span>
+            <span>{(item.price * item.quantity).toFixed(2)} ₺</span>
           </div>
         ))}
 
-        <div className="border-t mt-3 pt-3 flex justify-between font-semibold">
+        <div className="border-t mt-3 pt-3 flex justify-between mb-2">
           <span>Ara Toplam</span>
           <span>{subtotal.toFixed(2)} ₺</span>
         </div>
 
-        <p className="text-xs text-gray-500 mt-2">
-          Kargo ve indirim tutarı ödeme öncesi sunucuda hesaplanır.
-        </p>
+        {discount > 0 && (
+          <div className="flex justify-between mb-2 text-green-600">
+            <span>İndirim ({couponCode})</span>
+            <span>-{discount.toFixed(2)} ₺</span>
+          </div>
+        )}
+
+        <div className="flex justify-between mb-2">
+          <span>Kargo</span>
+          <span>{shippingCost.toFixed(2)} ₺</span>
+        </div>
+
+        <div className="border-t pt-3 flex justify-between font-semibold text-lg">
+          <span>Toplam</span>
+          <span>{(couponCode ? total : subtotal).toFixed(2)} ₺</span>
+        </div>
       </div>
     </div>
   );
