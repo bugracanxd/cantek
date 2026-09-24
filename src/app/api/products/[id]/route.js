@@ -4,17 +4,26 @@ import { prisma } from "@/lib/prisma";
 import { authOptions, requireAdmin } from "@/lib/auth";
 import { productSchema } from "@/lib/validations";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req, { params }) {
   const product = await prisma.product.findUnique({
     where: { id: params.id },
     include: {
       images: { orderBy: { order: "asc" } },
-      category: true,
+      categories: {
+        include: {
+          category: true,
+        },
+      },
     },
   });
 
   if (!product) {
-    return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Bulunamadı" },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json({ product });
@@ -31,6 +40,7 @@ export async function PUT(req, { params }) {
   }
 
   const body = await req.json();
+
   const parsed = productSchema.partial().safeParse(body);
 
   if (!parsed.success) {
@@ -40,9 +50,14 @@ export async function PUT(req, { params }) {
     );
   }
 
-  let { images = [], sizes, colors, ...rest } = parsed.data;
+  let {
+    images = [],
+    sizes,
+    colors,
+    categoryIds = [],
+    ...rest
+  } = parsed.data;
 
-  // String ve {url} formatlarını tek tipe çevir
   images = (images || [])
     .map((img) => (typeof img === "string" ? img : img?.url))
     .filter(Boolean);
@@ -62,7 +77,9 @@ export async function PUT(req, { params }) {
     });
 
     await tx.productImage.deleteMany({
-      where: { productId: params.id },
+      where: {
+        productId: params.id,
+      },
     });
 
     if (images.length) {
@@ -74,13 +91,38 @@ export async function PUT(req, { params }) {
         })),
       });
     }
+
+    await tx.productCategory.deleteMany({
+      where: {
+        productId: params.id,
+      },
+    });
+
+    if (categoryIds.length) {
+      await tx.productCategory.createMany({
+        data: categoryIds.map((categoryId) => ({
+          productId: params.id,
+          categoryId,
+        })),
+      });
+    }
   });
 
   const product = await prisma.product.findUnique({
-    where: { id: params.id },
+    where: {
+      id: params.id,
+    },
     include: {
-      images: { orderBy: { order: "asc" } },
-      category: true,
+      images: {
+        orderBy: {
+          order: "asc",
+        },
+      },
+      categories: {
+        include: {
+          category: true,
+        },
+      },
     },
   });
 
@@ -98,7 +140,9 @@ export async function DELETE(req, { params }) {
   }
 
   await prisma.product.delete({
-    where: { id: params.id },
+    where: {
+      id: params.id,
+    },
   });
 
   return NextResponse.json({ success: true });
