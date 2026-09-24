@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -30,6 +30,11 @@ export default function CartPage() {
   } = useCart();
 
   const [code, setCode] = useState(couponCode);
+
+  // Kupon state'i değişince input da otomatik güncellensin
+  useEffect(() => {
+    setCode(couponCode);
+  }, [couponCode]);
 
   if (hydrated && items.length === 0) {
     return (
@@ -150,9 +155,7 @@ export default function CartPage() {
             type="text"
             placeholder="Kupon kodu"
             value={code}
-            onChange={(e) =>
-              setCode(e.target.value.toUpperCase())
-            }
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
             className="flex-1 border px-3 py-2 rounded-site text-sm"
           />
 
@@ -176,10 +179,7 @@ export default function CartPage() {
             <span>✓ {couponCode}</span>
 
             <button
-              onClick={() => {
-                removeCoupon();
-                setCode("");
-              }}
+              onClick={() => removeCoupon()}
               className="underline"
             >
               Kaldır
@@ -206,9 +206,7 @@ export default function CartPage() {
 
         <div className="border-t mt-3 pt-3 flex justify-between font-semibold text-lg">
           <span>Toplam</span>
-          <span>
-            {(couponCode ? total : subtotal).toFixed(2)} ₺
-          </span>
+          <span>{(couponCode ? total : subtotal).toFixed(2)} ₺</span>
         </div>
 
         <Link
