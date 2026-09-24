@@ -620,4 +620,166 @@ export default function AdminCouponsPage() {
                                 </span>
                               </>
                             ) : (
-                              <span className="
+                              <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-500">
+                                Limitsiz
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(c.id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+                            title="Kuponu sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile */}
+            <div className="divide-y divide-gray-100 md:hidden">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="p-5">
+                    <div className="flex items-center gap-4">
+                      <div className="h-11 w-11 animate-pulse rounded-xl bg-gray-100" />
+
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
+                        <div className="h-3 w-40 animate-pulse rounded bg-gray-100" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : filteredCoupons.length === 0 ? (
+                <div className="px-5 py-14 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+                    <TicketPercent className="h-6 w-6 text-gray-400" />
+                  </div>
+
+                  <p className="mt-4 font-medium text-gray-900">
+                    Kupon bulunamadı
+                  </p>
+
+                  <p className="mt-1 text-sm text-gray-500">
+                    {search
+                      ? "Arama kriterlerini değiştirmeyi deneyin."
+                      : "Henüz kupon oluşturulmamış."}
+                  </p>
+                </div>
+              ) : (
+                filteredCoupons.map((c) => (
+                  <div key={c.id} className="p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+                        <Ticket className="h-4 w-4 text-gray-600" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold tracking-wide text-gray-900">
+                              {c.code}
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-400">
+                              İndirim kuponu
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(c.id)}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+                            title="Kuponu sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-gray-50 p-3">
+                            <p className="text-[11px] font-medium text-gray-400">
+                              İndirim
+                            </p>
+
+                            <p className="mt-1 font-semibold text-gray-900">
+                              {c.value}
+                              {c.type === "PERCENT" ? "%" : " ₺"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-gray-50 p-3">
+                            <p className="text-[11px] font-medium text-gray-400">
+                              Kullanım
+                            </p>
+
+                            <p className="mt-1 font-semibold text-gray-900">
+                              {c.usedCount || 0}
+                              {c.usageLimit ? ` / ${c.usageLimit}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-gray-50 p-3">
+                            <p className="text-[11px] font-medium text-gray-400">
+                              Tip
+                            </p>
+
+                            <p className="mt-1 font-semibold text-gray-900">
+                              {c.type === "PERCENT" ? "Yüzde" : "Sabit"}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl bg-gray-50 p-3">
+                            <p className="text-[11px] font-medium text-gray-400">
+                              Min. Sepet
+                            </p>
+
+                            <p className="mt-1 font-semibold text-gray-900">
+                              {Number(
+                                c.minCartAmount || 0
+                              ).toLocaleString("tr-TR")}{" "}
+                              ₺
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                              c.type === "PERCENT"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-emerald-50 text-emerald-700"
+                            }`}
+                          >
+                            {c.type === "PERCENT" ? (
+                              <Percent className="h-3.5 w-3.5" />
+                            ) : (
+                              <Banknote className="h-3.5 w-3.5" />
+                            )}
+
+                            {c.type === "PERCENT"
+                              ? "Yüzde İndirim"
+                              : "Sabit İndirim"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
