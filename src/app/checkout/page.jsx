@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useCart } from "@/context/CartContext";
 
@@ -16,7 +17,8 @@ export default function CheckoutPage() {
     clearCart,
   } = useCart();
 
-  const { data: session } = useSession();
+  const router = useRouter();
+  const { data: session, status } = useSession();
 
   const [form, setForm] = useState({
     customerName: "",
@@ -28,6 +30,13 @@ export default function CheckoutPage() {
 
   const [loading, setLoading] = useState(false);
   const [iframeToken, setIframeToken] = useState(null);
+
+  // Giriş yapmamış kullanıcıyı login'e yönlendir
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login?redirect=/checkout");
+    }
+  }, [status, router]);
 
   useEffect(() => {
     setForm((prev) => ({
@@ -124,6 +133,27 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Oturum kontrolü yapılırken
+  if (status === "loading") {
+    return (
+      <div className="site-container py-20 text-center">
+        <p className="text-gray-600">Kontrol ediliyor...</p>
+      </div>
+    );
+  }
+
+  // Giriş yapmamışsa yönlendirme gerçekleşene kadar
+  if (status === "unauthenticated") {
+    return (
+      <div className="site-container py-20 text-center">
+        <h1 className="text-2xl font-bold mb-3">Giriş Yapmanız Gerekiyor</h1>
+        <p className="text-gray-600">
+          Ödeme yapabilmek için hesabınıza giriş yapmalısınız.
+        </p>
+      </div>
+    );
   }
 
   if (iframeToken) {
