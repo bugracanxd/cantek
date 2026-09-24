@@ -13,8 +13,14 @@ export function CartProvider({ children }) {
   const [discount, setDiscount] = useState(0);
   const [shippingCost, setShippingCost] = useState(0);
   const [total, setTotal] = useState(0);
+
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
+
+  const subtotal = items.reduce(
+    (sum, i) => sum + i.price * i.quantity,
+    0
+  );
 
   useEffect(() => {
     try {
@@ -23,7 +29,6 @@ export function CartProvider({ children }) {
       if (raw) {
         const data = JSON.parse(raw);
 
-        // Eski formatı da destekle
         if (Array.isArray(data)) {
           setItems(data);
         } else {
@@ -35,16 +40,11 @@ export function CartProvider({ children }) {
         }
       }
     } catch (e) {
-      // sepet okunamazsa sessizce boş başlat
+      console.error("Sepet okunamadı:", e);
     }
 
     setHydrated(true);
   }, []);
-
-  const subtotal = items.reduce(
-    (sum, i) => sum + i.price * i.quantity,
-    0
-  );
 
   useEffect(() => {
     if (!hydrated) return;
@@ -67,20 +67,6 @@ export function CartProvider({ children }) {
     total,
     hydrated,
   ]);
-
-  // Sepet değiştiğinde eski indirim sonucunu sıfırla
-  useEffect(() => {
-    if (!couponCode) {
-      setTotal(subtotal);
-      return;
-    }
-
-    // Ürün/sepet değiştiyse eski sunucu sonucuna güvenmeyelim
-    setDiscount(0);
-    setShippingCost(0);
-    setTotal(subtotal);
-    setCouponError("");
-  }, [subtotal]);
 
   function addItem(product, size, color, quantity = 1) {
     setItems((prev) => {
@@ -113,6 +99,12 @@ export function CartProvider({ children }) {
         },
       ];
     });
+
+    // Sepet değişince eski kupon hesabını geçersiz kıl
+    setCouponCode("");
+    setDiscount(0);
+    setShippingCost(0);
+    setTotal(0);
   }
 
   function updateQuantity(productId, size, color, quantity) {
@@ -127,6 +119,11 @@ export function CartProvider({ children }) {
         )
         .filter((i) => i.quantity > 0)
     );
+
+    setCouponCode("");
+    setDiscount(0);
+    setShippingCost(0);
+    setTotal(0);
   }
 
   function removeItem(productId, size, color) {
@@ -140,6 +137,11 @@ export function CartProvider({ children }) {
           )
       )
     );
+
+    setCouponCode("");
+    setDiscount(0);
+    setShippingCost(0);
+    setTotal(0);
   }
 
   async function applyCoupon(code) {
@@ -160,30 +162,38 @@ export function CartProvider({ children }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          couponCode: normalizedCode,
+          code: normalizedCode,
           subtotal,
         }),
       });
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !data.valid) {
         setCouponCode("");
         setDiscount(0);
         setShippingCost(0);
         setTotal(subtotal);
-        setCouponError(data.error || "Kupon uygulanamadı.");
+        setCouponError(
+          data.error || "Kupon kodu geçersiz."
+        );
+
         return false;
       }
 
       setCouponCode(data.couponCode);
-      setDiscount(data.discount);
-      setShippingCost(data.shippingCost);
-      setTotal(data.total);
+      setDiscount(Number(data.discount) || 0);
+      setShippingCost(Number(data.shippingCost) || 0);
+      setTotal(Number(data.total) || 0);
 
       return true;
     } catch (error) {
-      setCouponError("Kupon kontrol edilirken bir hata oluştu.");
+      console.error("Kupon hatası:", error);
+
+      setCouponError(
+        "Kupon kontrol edilirken bir hata oluştu."
+      );
+
       return false;
     } finally {
       setCouponLoading(false);
@@ -245,7 +255,9 @@ export function useCart() {
   const ctx = useContext(CartContext);
 
   if (!ctx) {
-    throw new Error("useCart must be used within CartProvider");
+    throw new Error(
+      "useCart must be used within CartProvider"
+    );
   }
 
   return ctx;
