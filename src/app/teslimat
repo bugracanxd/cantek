@@ -1,0 +1,45 @@
+export const metadata = {
+  title: "Teslimat ve Kargo Politikası | CANTEK",
+};
+
+export default function Page() {
+  return (
+    <main className="max-w-4xl mx-auto px-6 py-12">
+      <h1 className="text-4xl font-bold mb-8">Teslimat ve Kargo Politikası</h1>
+
+      <div className="space-y-6 text-gray-700 leading-8">
+        <p><strong>Son Güncelleme:</strong> 24.09.2026</p>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-2">Kargo Süresi</h2>
+          <p>
+            Siparişler genellikle 3-5 iş günü içerisinde hazırlanır ve kargo firmasına teslim edilir.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-2">Kargo Takibi</h2>
+          <p>
+            Siparişiniz kargoya verildiğinde takip numarası oluşturulur. Siparişinizi
+            Sipariş Sorgulama sayfasından takip edebilirsiniz.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-2">Teslimat Adresi</h2>
+          <p>
+            Teslimat, sipariş sırasında belirtilen adrese yapılır. Yanlış adres nedeniyle
+            oluşabilecek gecikmelerden müşteri sorumludur.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold mb-2">Hasarlı Teslimat</h2>
+          <p>
+            Paket üzerinde hasar bulunuyorsa teslim almadan önce kargo görevlisiyle tutanak tutulmasını öneririz.
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
