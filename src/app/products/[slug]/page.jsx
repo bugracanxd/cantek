@@ -5,8 +5,12 @@ import ProductDetail from "./ProductDetail";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }) {
-  const product = await prisma.product.findUnique({ where: { slug: params.slug } });
+  const product = await prisma.product.findUnique({
+    where: { slug: params.slug },
+  });
+
   if (!product) return {};
+
   return {
     title: product.seoTitle || product.name,
     description: product.seoDescription || product.description.slice(0, 150),
@@ -16,7 +20,16 @@ export async function generateMetadata({ params }) {
 export default async function ProductPage({ params }) {
   const product = await prisma.product.findUnique({
     where: { slug: params.slug },
-    include: { images: { orderBy: { order: "asc" } }, category: true },
+    include: {
+      images: {
+        orderBy: { order: "asc" },
+      },
+      categories: {
+        include: {
+          category: true,
+        },
+      },
+    },
   });
 
   if (!product || !product.isActive) notFound();
