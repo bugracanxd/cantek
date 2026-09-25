@@ -3,7 +3,12 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingBag, Check } from "lucide-react";
+import {
+  ShoppingBag,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useCart } from "@/context/CartContext";
 
 export default function ProductDetail({ product }) {
@@ -17,28 +22,51 @@ export default function ProductDetail({ product }) {
       ? JSON.parse(product.colors || "[]")
       : product.colors || [];
 
-  const images =
-    product.images?.length
-      ? product.images
-      : [{ url: "/uploads/product-placeholder.svg" }];
+  const images = product.images?.length
+    ? product.images
+    : [{ url: "/uploads/product-placeholder.svg" }];
 
-  const categoryText =
-    product.categories?.length
-      ? product.categories
-          .map((c) => c.category?.name)
-          .filter(Boolean)
-          .join(" • ")
-      : "";
+  const categoryText = product.categories?.length
+    ? product.categories
+        .map((c) => c.category?.name)
+        .filter(Boolean)
+        .join(" • ")
+    : "";
 
   const [activeImage, setActiveImage] = useState(0);
   const [size, setSize] = useState(sizes[0] || "");
   const [color, setColor] = useState(colors[0] || "");
   const [justAdded, setJustAdded] = useState(false);
+  const [touchStart, setTouchStart] = useState(null);
 
   const { addItem } = useCart();
 
   const hasDiscount =
     product.discountedPrice && product.discountedPrice < product.price;
+
+  function prevImage() {
+    setActiveImage((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  }
+
+  function nextImage() {
+    setActiveImage((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  }
+
+  function handleTouchStart(e) {
+    setTouchStart(e.touches[0].clientX);
+  }
+
+  function handleTouchEnd(e) {
+    if (touchStart === null) return;
+
+    const diff = touchStart - e.changedTouches[0].clientX;
+
+    if (Math.abs(diff) > 50) {
+      diff > 0 ? nextImage() : prevImage();
+    }
+
+    setTouchStart(null);
+  }
 
   function handleAddToCart() {
     if (sizes.length && !size) {
@@ -61,26 +89,60 @@ export default function ProductDetail({ product }) {
             key={activeImage}
             initial={{ opacity: 0.4 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-            className="product-image-zoom mb-5 aspect-[4/5] overflow-hidden rounded-[32px] bg-[#F4F1EA] shadow-[0_30px_70px_rgba(0,0,0,0.08)]"
+            transition={{ duration: 0.25 }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="relative mb-5 aspect-[4/5] overflow-hidden rounded-[32px] bg-[#F4F1EA] shadow-[0_30px_70px_rgba(0,0,0,0.08)]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={images[activeImage].url}
               alt={product.name}
-              className="h-full w-full object-cover"
+              draggable={false}
+              className="h-full w-full select-none object-cover"
             />
+
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-3 backdrop-blur-md transition hover:scale-105 hover:bg-white"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+
+                <button
+                  onClick={nextImage}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-3 backdrop-blur-md transition hover:scale-105 hover:bg-white"
+                >
+                  <ChevronRight size={22} />
+                </button>
+
+                <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-black/20 px-3 py-2 backdrop-blur-md">
+                  {images.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-2 w-2 rounded-full transition-all ${
+                        i === activeImage
+                          ? "bg-white w-5"
+                          : "bg-white/50"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </motion.div>
 
           {images.length > 1 && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {images.map((img, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveImage(i)}
-                  className={`h-16 w-16 overflow-hidden rounded border-2 transition-colors ${
+                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
                     i === activeImage
-                      ? "border-black"
+                      ? "border-black scale-105"
                       : "border-transparent hover:border-gray-300"
                   }`}
                 >
