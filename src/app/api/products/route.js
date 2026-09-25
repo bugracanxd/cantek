@@ -98,9 +98,12 @@ export async function POST(req) {
         })),
       },
 
+      // DÜZELTİLEN KISIM
       categories: {
         create: categoryIds.map((id) => ({
-          categoryId: id,
+          category: {
+            connect: { id },
+          },
         })),
       },
     },
