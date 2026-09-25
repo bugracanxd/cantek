@@ -16,7 +16,10 @@ export const productSchema = z.object({
   stock: z.number().int().min(0),
   sizes: z.array(z.string()).default([]),
   colors: z.array(z.string()).default([]),
-  categoryId: z.string().nullable().optional(),
+
+  // BURASI DÜZELDİ
+  categoryIds: z.array(z.string()).default([]),
+
   images: z.array(z.string()).default([]),
   isFeatured: z.boolean().optional(),
   isNew: z.boolean().optional(),
