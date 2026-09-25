@@ -1,44 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import ProductForm from "@/components/admin/ProductForm";
 
-export default function EditProductPage({ params }) {
-  const [initial, setInitial] = useState(null);
+export default function EditProductPage() {
+  const { id } = useParams();
+  const [product, setProduct] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/products/${params.id}`)
+    fetch(`/api/products/${id}`)
       .then((r) => r.json())
-      .then((d) => {
-        const p = d.product;
-        setInitial({
-          name: p.name,
-          slug: p.slug,
-          description: p.description,
-          price: p.price,
-          discountedPrice: p.discountedPrice || "",
-          sku: p.sku,
-          stock: p.stock,
-          sizes: JSON.parse(p.sizes || "[]").join(","),
-          colors: JSON.parse(p.colors || "[]").join(","),
-          categoryId: p.categoryId || "",
-          images: p.images.map((i) => i.url),
-          isFeatured: p.isFeatured,
-          isNew: p.isNew,
-          isBestSeller: p.isBestSeller,
-          isActive: p.isActive,
-          seoTitle: p.seoTitle || "",
-          seoDescription: p.seoDescription || "",
-        });
-      });
-  }, [params.id]);
+      .then((d) => setProduct(d.product));
+  }, [id]);
 
-  if (!initial) return <p>Yükleniyor...</p>;
+  if (!product) return <div>Yükleniyor...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Ürünü Düzenle</h1>
-      <ProductForm initial={initial} productId={params.id} />
+      <h1 className="mb-6 text-2xl font-bold">Ürünü Düzenle</h1>
+      <ProductForm initial={product} productId={id} />
     </div>
   );
 }
