@@ -9,12 +9,16 @@ export default function EditProductPage() {
   const [product, setProduct] = useState(null);
 
   useEffect(() => {
+    if (!id) return;
+
     fetch(`/api/products/${id}`)
       .then((r) => r.json())
       .then((d) => setProduct(d.product));
   }, [id]);
 
-  if (!product) return <div>Yükleniyor...</div>;
+  if (!product) {
+    return <div className="p-6">Yükleniyor...</div>;
+  }
 
   return (
     <div>
