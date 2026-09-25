@@ -1,9 +1,11 @@
+"use client";
+
 import ProductForm from "@/components/admin/ProductForm";
 
 export default function NewProductPage() {
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Yeni Ürün</h1>
+      <h1 className="mb-6 text-2xl font-bold">Yeni Ürün</h1>
       <ProductForm />
     </div>
   );
