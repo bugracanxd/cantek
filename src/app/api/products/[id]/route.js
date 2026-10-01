@@ -7,143 +7,228 @@ import { productSchema } from "@/lib/validations";
 export const dynamic = "force-dynamic";
 
 export async function GET(req, { params }) {
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    include: {
-      images: { orderBy: { order: "asc" } },
-      categories: {
-        include: {
-          category: true,
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: params.id },
+      include: {
+        images: {
+          orderBy: {
+            order: "asc",
+          },
+        },
+        categories: {
+          include: {
+            category: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  if (!product) {
+    if (!product) {
+      return NextResponse.json(
+        { error: "Ürün bulunamadı" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ product });
+  } catch (error) {
+    console.error("GET /api/products/[id] error:", error);
+
     return NextResponse.json(
-      { error: "Bulunamadı" },
-      { status: 404 }
+      { error: "Ürün alınırken bir hata oluştu." },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json({ product });
 }
 
 export async function PUT(req, { params }) {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!requireAdmin(session)) {
-    return NextResponse.json(
-      { error: "Yetkisiz erişim" },
-      { status: 401 }
-    );
-  }
-
-  const body = await req.json();
-
-  const parsed = productSchema.partial().safeParse(body);
-
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0].message },
-      { status: 400 }
-    );
-  }
-
-  let {
-    images = [],
-    sizes,
-    colors,
-    categoryIds = [],
-    ...rest
-  } = parsed.data;
-
-  images = (images || [])
-    .map((img) => (typeof img === "string" ? img : img?.url))
-    .filter(Boolean);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.product.update({
-      where: { id: params.id },
-      data: {
-        ...rest,
-        ...(sizes !== undefined && {
-          sizes: JSON.stringify(sizes),
-        }),
-        ...(colors !== undefined && {
-          colors: JSON.stringify(colors),
-        }),
-      },
-    });
-
-    await tx.productImage.deleteMany({
-      where: {
-        productId: params.id,
-      },
-    });
-
-    if (images.length) {
-      await tx.productImage.createMany({
-        data: images.map((url, index) => ({
-          productId: params.id,
-          url,
-          order: index,
-        })),
-      });
+    if (!requireAdmin(session)) {
+      return NextResponse.json(
+        { error: "Yetkisiz erişim" },
+        { status: 401 }
+      );
     }
 
-    await tx.productCategory.deleteMany({
+    const body = await req.json();
+
+    const parsed = productSchema.partial().safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error:
+            parsed.error.issues?.[0]?.message ||
+            "Geçersiz ürün bilgileri",
+        },
+        { status: 400 }
+      );
+    }
+
+    let {
+      images,
+      sizes,
+      colors,
+      categoryIds,
+      hasFurOption,
+      ...rest
+    } = parsed.data;
+
+    images = Array.isArray(images)
+      ? images
+          .map((img) =>
+            typeof img === "string" ? img : img?.url
+          )
+          .filter(Boolean)
+      : undefined;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: {
+          id: params.id,
+        },
+
+        data: {
+          ...rest,
+
+          ...(hasFurOption !== undefined && {
+            hasFurOption: Boolean(hasFurOption),
+          }),
+
+          ...(sizes !== undefined && {
+            sizes: JSON.stringify(sizes),
+          }),
+
+          ...(colors !== undefined && {
+            colors: JSON.stringify(colors),
+          }),
+        },
+      });
+
+      // Görseller gönderildiyse mevcut görselleri yenile
+      if (images !== undefined) {
+        await tx.productImage.deleteMany({
+          where: {
+            productId: params.id,
+          },
+        });
+
+        if (images.length > 0) {
+          await tx.productImage.createMany({
+            data: images.map((url, index) => ({
+              productId: params.id,
+              url,
+              order: index,
+            })),
+          });
+        }
+      }
+
+      // Kategoriler gönderildiyse mevcut kategorileri yenile
+      if (categoryIds !== undefined) {
+        await tx.productCategory.deleteMany({
+          where: {
+            productId: params.id,
+          },
+        });
+
+        if (categoryIds.length > 0) {
+          await tx.productCategory.createMany({
+            data: categoryIds.map((categoryId) => ({
+              productId: params.id,
+              categoryId,
+            })),
+          });
+        }
+      }
+    });
+
+    const product = await prisma.product.findUnique({
       where: {
-        productId: params.id,
+        id: params.id,
+      },
+      include: {
+        images: {
+          orderBy: {
+            order: "asc",
+          },
+        },
+        categories: {
+          include: {
+            category: true,
+          },
+        },
       },
     });
 
-    if (categoryIds.length) {
-      await tx.productCategory.createMany({
-        data: categoryIds.map((categoryId) => ({
-          productId: params.id,
-          categoryId,
-        })),
-      });
+    return NextResponse.json({ product });
+  } catch (error) {
+    console.error("PUT /api/products/[id] error:", error);
+
+    if (error?.code === "P2025") {
+      return NextResponse.json(
+        { error: "Ürün bulunamadı." },
+        { status: 404 }
+      );
     }
-  });
 
-  const product = await prisma.product.findUnique({
-    where: {
-      id: params.id,
-    },
-    include: {
-      images: {
-        orderBy: {
-          order: "asc",
+    if (error?.code === "P2002") {
+      return NextResponse.json(
+        {
+          error:
+            "Bu ürün slug veya SKU zaten kullanılıyor.",
         },
-      },
-      categories: {
-        include: {
-          category: true,
-        },
-      },
-    },
-  });
+        { status: 400 }
+      );
+    }
 
-  return NextResponse.json({ product });
+    return NextResponse.json(
+      {
+        error: "Ürün güncellenirken bir hata oluştu.",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(req, { params }) {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!requireAdmin(session)) {
+    if (!requireAdmin(session)) {
+      return NextResponse.json(
+        { error: "Yetkisiz erişim" },
+        { status: 401 }
+      );
+    }
+
+    await prisma.product.delete({
+      where: {
+        id: params.id,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+    });
+  } catch (error) {
+    console.error("DELETE /api/products/[id] error:", error);
+
+    if (error?.code === "P2025") {
+      return NextResponse.json(
+        { error: "Ürün bulunamadı." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Yetkisiz erişim" },
-      { status: 401 }
+      {
+        error: "Ürün silinirken bir hata oluştu.",
+      },
+      { status: 500 }
     );
   }
-
-  await prisma.product.delete({
-    where: {
-      id: params.id,
-    },
-  });
-
-  return NextResponse.json({ success: true });
 }
