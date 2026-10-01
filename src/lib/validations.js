@@ -17,7 +17,10 @@ export const productSchema = z.object({
   sizes: z.array(z.string()).default([]),
   colors: z.array(z.string()).default([]),
 
-  // BURASI DÜZELDİ
+  // Üründe kürk seçeneği gösterilsin mi?
+  hasFurOption: z.boolean().optional(),
+
+  // Çoklu kategori desteği
   categoryIds: z.array(z.string()).default([]),
 
   images: z.array(z.string()).default([]),
@@ -54,6 +57,7 @@ export const checkoutSchema = z.object({
   customerPhone: z.string().min(6),
   shippingAddress: z.string().min(5),
   couponCode: z.string().optional(),
+
   items: z
     .array(
       z.object({
@@ -61,6 +65,9 @@ export const checkoutSchema = z.object({
         size: z.string(),
         color: z.string().optional(),
         quantity: z.number().int().positive(),
+
+        // Müşteri ürünü kürklü olarak mı istiyor?
+        furSelected: z.boolean().optional().default(false),
       })
     )
     .min(1),
