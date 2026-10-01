@@ -81,7 +81,7 @@ export default function Hero({ data }) {
               className="mt-8"
             >
               <a
-                href="/category/erkek-ayakkabi"
+                href="/products"
                 className="inline-flex items-center gap-2 rounded-full bg-[#111111] px-7 py-3 text-white transition hover:scale-[1.02]"
               >
                 Koleksiyonu İncele
