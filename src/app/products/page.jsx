@@ -8,7 +8,14 @@ export const metadata = {
   title: "Tüm Ürünler",
 };
 
-// JSON veya normal virgüllü string'i diziye çevirir
+// ----------------------------------------------------
+// Ürünlerdeki sizes / colors verisini diziye çevirir
+// Destekler:
+// ["39","40","41"]
+// 39,40,41
+// 39, 40, 41
+// ----------------------------------------------------
+
 function parseProductList(value) {
   if (!value) return [];
 
@@ -16,8 +23,6 @@ function parseProductList(value) {
 
   if (!text) return [];
 
-  // JSON formatı:
-  // ["39","40","41","42"]
   try {
     const parsed = JSON.parse(text);
 
@@ -30,8 +35,6 @@ function parseProductList(value) {
     // JSON değilse normal string olarak devam
   }
 
-  // Eski format:
-  // 39,40,41,42
   return text
     .replace(/^\[/, "")
     .replace(/\]$/, "")
@@ -45,55 +48,90 @@ function parseProductList(value) {
     .filter(Boolean);
 }
 
-// JSON array veya CSV formatındaki string alanında
-// belirli bir değeri bulmak için Prisma koşulları
-function buildStringConditions(field, value) {
-  if (!value) return [];
+// ----------------------------------------------------
+// Bir ürünün string alanında belirli değeri arar
+//
+// Örnek:
+// sizes = ["39","40","41"]
+//
+// 40 ararken:
+// contains: '"40"'
+// ----------------------------------------------------
 
-  const normalized = String(value).trim();
-
+function buildValueConditions(field, value) {
   return [
     {
       [field]: {
-        equals: normalized,
+        equals: value,
       },
     },
     {
       [field]: {
-        contains: `"${normalized}"`,
+        contains: `"${value}"`,
       },
     },
     {
       [field]: {
-        startsWith: `${normalized},`,
+        startsWith: `${value},`,
       },
     },
     {
       [field]: {
-        endsWith: `,${normalized}`,
+        endsWith: `,${value}`,
       },
     },
     {
       [field]: {
-        contains: `,${normalized},`,
+        contains: `,${value},`,
       },
     },
     {
       [field]: {
-        contains: `, ${normalized},`,
+        contains: `, ${value},`,
       },
     },
     {
       [field]: {
-        startsWith: `${normalized}, `,
+        startsWith: `${value}, `,
       },
     },
     {
       [field]: {
-        endsWith: `, ${normalized}`,
+        endsWith: `, ${value}`,
       },
     },
   ];
+}
+
+// ----------------------------------------------------
+// Virgülle gelen filtreleri OR haline getirir
+//
+// size=40,42,44
+//
+// sonuç:
+//
+// sizes 40 OR 42 OR 44
+// ----------------------------------------------------
+
+function buildMultiValueFilter(field, value) {
+  if (!value) return null;
+
+  const values = String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (values.length === 0) {
+    return null;
+  }
+
+  const conditions = values.flatMap((item) =>
+    buildValueConditions(field, item)
+  );
+
+  return {
+    OR: conditions,
+  };
 }
 
 export default async function AllProductsPage({
@@ -102,17 +140,21 @@ export default async function AllProductsPage({
   const params = searchParams || {};
 
   const categorySlug = params.category || "";
-  const size = params.size || "";
-  const color = params.color || "";
+  const sizeParam = params.size || "";
+  const colorParam = params.color || "";
   const sort = params.sort || "";
 
-  // ---------------- WHERE ----------------
+  // ----------------------------------------------------
+  // ANA WHERE
+  // ----------------------------------------------------
 
   const where = {
     isActive: true,
   };
 
-  // ---------------- CATEGORY ----------------
+  // ----------------------------------------------------
+  // CATEGORY
+  // ----------------------------------------------------
 
   if (categorySlug) {
     where.categories = {
@@ -125,44 +167,64 @@ export default async function AllProductsPage({
     };
   }
 
-  // ---------------- SIZE ----------------
+  // ----------------------------------------------------
+  // SIZE
+  //
+  // 40,42,44 seçildiyse:
+  //
+  // sizes 40
+  // OR
+  // sizes 42
+  // OR
+  // sizes 44
+  // ----------------------------------------------------
 
-  if (size) {
-    const sizeConditions = buildStringConditions(
-      "sizes",
-      size
-    );
+  const sizeFilter = buildMultiValueFilter(
+    "sizes",
+    sizeParam
+  );
 
-    where.OR = sizeConditions;
+  // ----------------------------------------------------
+  // COLOR
+  //
+  // Siyah,Lacivert Deri seçildiyse:
+  //
+  // colors Siyah
+  // OR
+  // colors Lacivert Deri
+  // ----------------------------------------------------
+
+  const colorFilter = buildMultiValueFilter(
+    "colors",
+    colorParam
+  );
+
+  // ----------------------------------------------------
+  // BEDEN + RENK
+  //
+  // İkisi de seçilmişse:
+  //
+  // (BEDEN 40 OR 42)
+  //
+  // AND
+  //
+  // (RENK Siyah OR Lacivert)
+  // ----------------------------------------------------
+
+  if (sizeFilter && colorFilter) {
+    where.AND = [
+      sizeFilter,
+      colorFilter,
+    ];
+  } else if (sizeFilter) {
+    where.AND = [sizeFilter];
+  } else if (colorFilter) {
+    where.AND = [colorFilter];
   }
 
-  // ---------------- COLOR ----------------
-
-  if (color) {
-    const colorConditions = buildStringConditions(
-      "colors",
-      color
-    );
-
-    // Eğer hem beden hem renk seçildiyse
-    // ikisinin de sağlanması gerekiyor.
-    if (size) {
-      delete where.OR;
-
-      where.AND = [
-        {
-          OR: buildStringConditions("sizes", size),
-        },
-        {
-          OR: buildStringConditions("colors", color),
-        },
-      ];
-    } else {
-      where.OR = colorConditions;
-    }
-  }
-
-  // ---------------- SORT ----------------
+  // ----------------------------------------------------
+  // SORT
+  // ----------------------------------------------------
 
   let orderBy = {
     order: "asc",
@@ -180,7 +242,9 @@ export default async function AllProductsPage({
     };
   }
 
-  // ---------------- PRODUCTS ----------------
+  // ----------------------------------------------------
+  // PRODUCTS
+  // ----------------------------------------------------
 
   const products = await prisma.product.findMany({
     where,
@@ -203,7 +267,9 @@ export default async function AllProductsPage({
     orderBy,
   });
 
-  // ---------------- CATEGORIES ----------------
+  // ----------------------------------------------------
+  // CATEGORIES
+  // ----------------------------------------------------
 
   const categories = await prisma.category.findMany({
     where: {
@@ -215,7 +281,11 @@ export default async function AllProductsPage({
     },
   });
 
-  // ---------------- FILTER DATA ----------------
+  // ----------------------------------------------------
+  // ALL PRODUCTS
+  //
+  // Filtre seçeneklerini oluşturmak için kullanıyoruz.
+  // ----------------------------------------------------
 
   const allProducts = await prisma.product.findMany({
     where: {
@@ -228,7 +298,9 @@ export default async function AllProductsPage({
     },
   });
 
-  // ---------------- SIZES ----------------
+  // ----------------------------------------------------
+  // SIZES
+  // ----------------------------------------------------
 
   const sizes = [
     ...new Set(
@@ -250,7 +322,9 @@ export default async function AllProductsPage({
     return a.localeCompare(b, "tr");
   });
 
-  // ---------------- COLORS ----------------
+  // ----------------------------------------------------
+  // COLORS
+  // ----------------------------------------------------
 
   const colors = [
     ...new Set(
@@ -261,6 +335,28 @@ export default async function AllProductsPage({
   ].sort((a, b) =>
     a.localeCompare(b, "tr")
   );
+
+  // ----------------------------------------------------
+  // SEÇİLİ BEDENLER
+  // ----------------------------------------------------
+
+  const selectedSizes = sizeParam
+    ? sizeParam
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  // ----------------------------------------------------
+  // SEÇİLİ RENKLER
+  // ----------------------------------------------------
+
+  const selectedColors = colorParam
+    ? colorParam
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 
   return (
     <div className="site-container py-10">
@@ -285,25 +381,27 @@ export default async function AllProductsPage({
           colors={colors}
           currentFilters={{
             category: categorySlug,
-            size,
-            color,
+            size: sizeParam,
+            color: colorParam,
             sort,
           }}
         />
 
       </div>
 
-      {/* ACTIVE FILTERS */}
+      {/* AKTİF FİLTRELER */}
 
       {(categorySlug ||
-        size ||
-        color ||
+        selectedSizes.length > 0 ||
+        selectedColors.length > 0 ||
         sort) && (
         <div className="flex flex-wrap items-center gap-2 mb-8">
 
           <span className="text-sm text-gray-500 mr-1">
             Aktif filtreler:
           </span>
+
+          {/* CATEGORY */}
 
           {categorySlug && (
             <span className="px-3 py-1.5 rounded-full bg-black text-white text-xs">
@@ -315,17 +413,29 @@ export default async function AllProductsPage({
             </span>
           )}
 
-          {size && (
-            <span className="px-3 py-1.5 rounded-full bg-black text-white text-xs">
+          {/* SIZES */}
+
+          {selectedSizes.map((size) => (
+            <span
+              key={`size-${size}`}
+              className="px-3 py-1.5 rounded-full bg-black text-white text-xs"
+            >
               Beden: {size}
             </span>
-          )}
+          ))}
 
-          {color && (
-            <span className="px-3 py-1.5 rounded-full bg-black text-white text-xs">
+          {/* COLORS */}
+
+          {selectedColors.map((color) => (
+            <span
+              key={`color-${color}`}
+              className="px-3 py-1.5 rounded-full bg-black text-white text-xs"
+            >
               Renk: {color}
             </span>
-          )}
+          ))}
+
+          {/* SORT */}
 
           {sort === "price-asc" && (
             <span className="px-3 py-1.5 rounded-full bg-black text-white text-xs">
