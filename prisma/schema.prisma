@@ -73,6 +73,11 @@ model Product {
   colors          String
   brand           String   @default("CANTEK")
   tags            String?
+
+  // Kürk seçeneği
+  // true ise ürün detayında "Kürklü" seçeneği gösterilir.
+  hasFurOption    Boolean  @default(false)
+
   isFeatured      Boolean  @default(false)
   isNew           Boolean  @default(false)
   isBestSeller    Boolean  @default(false)
@@ -159,16 +164,19 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  name      String
-  size      String
-  color     String?
-  quantity  Int
-  unitPrice Float
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  name        String
+  size        String
+  color       String?
+  quantity    Int
+  unitPrice   Float
+
+  // Müşteri bu ürün için kürk seçti mi?
+  furSelected Boolean @default(false)
 }
 
 // ---------------- MARKETING ----------------
