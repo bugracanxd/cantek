@@ -5,9 +5,9 @@ import { verifyPaytrCallback } from "@/lib/paytr";
 // PAYTR bu URL'e server-to-server POST bildirimi gönderir.
 // PAYTR panelindeki "Bildirim URL" burası olmalıdır.
 //
-// Başarılı ve geçerli callback sonrasında düz metin:
+// Başarılı ve geçerli callback sonrasında:
 // OK
-// dönülmesi gerekir.
+// dönülür.
 
 export async function POST(req) {
   try {
@@ -24,21 +24,20 @@ export async function POST(req) {
     console.log("PAYTR callback received:", {
       merchant_oid: params.merchant_oid,
       status: params.status,
+      total_amount: params.total_amount,
     });
 
     // --------------------------------------------------
     // HASH VALIDATION
     // --------------------------------------------------
 
-    const isValid =
-      verifyPaytrCallback(params);
+    const isValid = verifyPaytrCallback(params);
 
     if (!isValid) {
       console.error(
         "PAYTR callback hash doğrulaması başarısız.",
         {
-          merchant_oid:
-            params.merchant_oid,
+          merchant_oid: params.merchant_oid,
         }
       );
 
@@ -71,6 +70,46 @@ export async function POST(req) {
     }
 
     // --------------------------------------------------
+    // PAYTR TOTAL
+    // --------------------------------------------------
+
+    /*
+     * PAYTR total_amount kuruş cinsindendir.
+     *
+     * Örnek:
+     * 3500.00 TL -> 350000
+     *
+     * Bizim DB'deki order.total ise TL cinsindedir.
+     */
+
+    const paytrTotalRaw =
+      params.total_amount?.toString().trim();
+
+    const paytrTotalKurus =
+      Number(paytrTotalRaw);
+
+    if (
+      !paytrTotalRaw ||
+      !Number.isFinite(paytrTotalKurus) ||
+      paytrTotalKurus < 0
+    ) {
+      console.error(
+        "PAYTR callback total_amount geçersiz.",
+        {
+          merchant_oid: merchantOid,
+          total_amount: paytrTotalRaw,
+        }
+      );
+
+      return new NextResponse(
+        "PAYTR notification failed: invalid total_amount",
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // --------------------------------------------------
     // FIND ORDER
     // --------------------------------------------------
 
@@ -95,6 +134,55 @@ export async function POST(req) {
       );
 
       return new NextResponse("OK");
+    }
+
+    // --------------------------------------------------
+    // TOTAL AMOUNT VALIDATION
+    // --------------------------------------------------
+
+    /*
+     * PAYTR'den gelen ödeme tutarı ile bizim
+     * veritabanındaki sipariş tutarı birebir aynı
+     * olmalıdır.
+     *
+     * Bu kontrol özellikle önemlidir çünkü:
+     *
+     * - Kürk seçeneği +500 TL
+     * - Kupon indirimi
+     * - Kargo
+     *
+     * gibi hesapların tamamı server tarafında
+     * oluşturulan order.total üzerinden yapılır.
+     */
+
+    const expectedTotalKurus =
+      Math.round(Number(order.total) * 100);
+
+    if (
+      paytrTotalKurus !== expectedTotalKurus
+    ) {
+      console.error(
+        "PAYTR ödeme tutarı sipariş tutarıyla eşleşmiyor.",
+        {
+          orderNumber: order.orderNumber,
+          merchantOid,
+          paytrTotalKurus,
+          expectedTotalKurus,
+          orderTotal: order.total,
+        }
+      );
+
+      /*
+       * Hash geçerli olsa bile tutar bizim
+       * siparişimizle uyuşmuyorsa siparişi
+       * PAID yapmıyoruz.
+       */
+      return new NextResponse(
+        "PAYTR notification failed: amount mismatch",
+        {
+          status: 400,
+        }
+      );
     }
 
     // --------------------------------------------------
@@ -190,9 +278,7 @@ export async function POST(req) {
      * geri vermemiz gerekiyor.
      */
 
-    if (
-      params.status !== "success"
-    ) {
+    if (params.status !== "success") {
       await prisma.$transaction(
         async (tx) => {
           // --------------------------------------------
@@ -247,12 +333,8 @@ export async function POST(req) {
               id: order.id,
             },
             data: {
-              paymentStatus:
-                "payment_failed",
-
-              status:
-                "CANCELLED",
-
+              paymentStatus: "payment_failed",
+              status: "CANCELLED",
               paytrProcessed: true,
             },
           });
