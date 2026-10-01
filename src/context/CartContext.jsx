@@ -5,6 +5,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 const CartContext = createContext(null);
 const STORAGE_KEY = "cantek_cart_v1";
 
+const FUR_PRICE = 500;
+
 export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [hydrated, setHydrated] = useState(false);
@@ -17,10 +19,18 @@ export function CartProvider({ children }) {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
 
+  // --------------------------------------------------
+  // SUBTOTAL
+  // --------------------------------------------------
+
   const subtotal = items.reduce(
-    (sum, i) => sum + i.price * i.quantity,
+    (sum, item) => sum + Number(item.price || 0) * item.quantity,
     0
   );
+
+  // --------------------------------------------------
+  // LOAD CART
+  // --------------------------------------------------
 
   useEffect(() => {
     try {
@@ -30,13 +40,30 @@ export function CartProvider({ children }) {
         const data = JSON.parse(raw);
 
         if (Array.isArray(data)) {
-          setItems(data);
+          /*
+           * Eski sepet formatını destekle.
+           * Eski ürünlerde furSelected bulunmuyorsa false kabul edilir.
+           */
+          setItems(
+            data.map((item) => ({
+              ...item,
+              furSelected: Boolean(item.furSelected),
+            }))
+          );
         } else {
-          setItems(data.items || []);
+          setItems(
+            Array.isArray(data.items)
+              ? data.items.map((item) => ({
+                  ...item,
+                  furSelected: Boolean(item.furSelected),
+                }))
+              : []
+          );
+
           setCouponCode(data.couponCode || "");
-          setDiscount(data.discount || 0);
-          setShippingCost(data.shippingCost || 0);
-          setTotal(data.total || 0);
+          setDiscount(Number(data.discount) || 0);
+          setShippingCost(Number(data.shippingCost) || 0);
+          setTotal(Number(data.total) || 0);
         }
       }
     } catch (e) {
@@ -46,19 +73,27 @@ export function CartProvider({ children }) {
     setHydrated(true);
   }, []);
 
+  // --------------------------------------------------
+  // SAVE CART
+  // --------------------------------------------------
+
   useEffect(() => {
     if (!hydrated) return;
 
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        items,
-        couponCode,
-        discount,
-        shippingCost,
-        total,
-      })
-    );
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          items,
+          couponCode,
+          discount,
+          shippingCost,
+          total,
+        })
+      );
+    } catch (e) {
+      console.error("Sepet kaydedilemedi:", e);
+    }
   }, [
     items,
     couponCode,
@@ -68,20 +103,48 @@ export function CartProvider({ children }) {
     hydrated,
   ]);
 
-  function addItem(product, size, color, quantity = 1) {
+  // --------------------------------------------------
+  // ADD ITEM
+  // --------------------------------------------------
+
+  function addItem(
+    product,
+    size,
+    color,
+    quantity = 1,
+    furSelected = false
+  ) {
+    const selectedFur = Boolean(furSelected);
+
+    const basePrice =
+      product.discountedPrice &&
+      Number(product.discountedPrice) < Number(product.price)
+        ? Number(product.discountedPrice)
+        : Number(product.price);
+
+    const finalPrice =
+      basePrice + (selectedFur ? FUR_PRICE : 0);
+
     setItems((prev) => {
+      /*
+       * Kürklü ve kürksüz seçenekler ayrı sepet ürünü olmalı.
+       */
       const existing = prev.find(
-        (i) =>
-          i.productId === product.id &&
-          i.size === size &&
-          i.color === color
+        (item) =>
+          item.productId === product.id &&
+          item.size === size &&
+          item.color === color &&
+          Boolean(item.furSelected) === selectedFur
       );
 
       if (existing) {
-        return prev.map((i) =>
-          i === existing
-            ? { ...i, quantity: i.quantity + quantity }
-            : i
+        return prev.map((item) =>
+          item === existing
+            ? {
+                ...item,
+                quantity: item.quantity + quantity,
+              }
+            : item
         );
       }
 
@@ -92,48 +155,82 @@ export function CartProvider({ children }) {
           name: product.name,
           slug: product.slug,
           image: product.images?.[0]?.url,
-          price: product.discountedPrice || product.price,
+          price: finalPrice,
           size,
           color,
           quantity,
+          furSelected: selectedFur,
         },
       ];
     });
 
-    // Sepet değişince eski kupon hesabını geçersiz kıl
+    /*
+     * Sepet değiştiğinde eski kupon hesabını
+     * geçersiz kıl.
+     */
     setCouponCode("");
     setDiscount(0);
     setShippingCost(0);
     setTotal(0);
+    setCouponError("");
   }
 
-  function updateQuantity(productId, size, color, quantity) {
+  // --------------------------------------------------
+  // UPDATE QUANTITY
+  // --------------------------------------------------
+
+  function updateQuantity(
+    productId,
+    size,
+    color,
+    quantity,
+    furSelected = false
+  ) {
+    const selectedFur = Boolean(furSelected);
+
     setItems((prev) =>
       prev
-        .map((i) =>
-          i.productId === productId &&
-          i.size === size &&
-          i.color === color
-            ? { ...i, quantity }
-            : i
+        .map((item) =>
+          item.productId === productId &&
+          item.size === size &&
+          item.color === color &&
+          Boolean(item.furSelected) === selectedFur
+            ? {
+                ...item,
+                quantity,
+              }
+            : item
         )
-        .filter((i) => i.quantity > 0)
+        .filter((item) => item.quantity > 0)
     );
 
     setCouponCode("");
     setDiscount(0);
     setShippingCost(0);
     setTotal(0);
+    setCouponError("");
   }
 
-  function removeItem(productId, size, color) {
+  // --------------------------------------------------
+  // REMOVE ITEM
+  // --------------------------------------------------
+
+  function removeItem(
+    productId,
+    size,
+    color,
+    furSelected = false
+  ) {
+    const selectedFur = Boolean(furSelected);
+
     setItems((prev) =>
       prev.filter(
-        (i) =>
+        (item) =>
           !(
-            i.productId === productId &&
-            i.size === size &&
-            i.color === color
+            item.productId === productId &&
+            item.size === size &&
+            item.color === color &&
+            Boolean(item.furSelected) === selectedFur
           )
       )
     );
@@ -142,7 +239,12 @@ export function CartProvider({ children }) {
     setDiscount(0);
     setShippingCost(0);
     setTotal(0);
+    setCouponError("");
   }
+
+  // --------------------------------------------------
+  // APPLY COUPON
+  // --------------------------------------------------
 
   async function applyCoupon(code) {
     const normalizedCode = code.trim().toUpperCase();
@@ -175,6 +277,7 @@ export function CartProvider({ children }) {
         setDiscount(0);
         setShippingCost(0);
         setTotal(subtotal);
+
         setCouponError(
           data.error || "Kupon kodu geçersiz."
         );
@@ -201,6 +304,10 @@ export function CartProvider({ children }) {
     }
   }
 
+  // --------------------------------------------------
+  // REMOVE COUPON
+  // --------------------------------------------------
+
   function removeCoupon() {
     setCouponCode("");
     setDiscount(0);
@@ -208,6 +315,10 @@ export function CartProvider({ children }) {
     setTotal(subtotal);
     setCouponError("");
   }
+
+  // --------------------------------------------------
+  // CLEAR CART
+  // --------------------------------------------------
 
   function clearCart() {
     setItems([]);
@@ -218,15 +329,24 @@ export function CartProvider({ children }) {
     setCouponError("");
   }
 
+  // --------------------------------------------------
+  // ITEM COUNT
+  // --------------------------------------------------
+
   const itemCount = items.reduce(
-    (sum, i) => sum + i.quantity,
+    (sum, item) => sum + item.quantity,
     0
   );
+
+  // --------------------------------------------------
+  // CONTEXT
+  // --------------------------------------------------
 
   return (
     <CartContext.Provider
       value={{
         items,
+
         addItem,
         updateQuantity,
         removeItem,
@@ -245,6 +365,8 @@ export function CartProvider({ children }) {
         removeCoupon,
         couponLoading,
         couponError,
+
+        furPrice: FUR_PRICE,
       }}
     >
       {children}
