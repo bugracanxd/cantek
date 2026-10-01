@@ -19,11 +19,17 @@ export default function ProductFilters({
     currentFilters.category || ""
   );
 
-  const [size, setSize] = useState(currentFilters.size || "");
+  const [size, setSize] = useState(
+    currentFilters.size || ""
+  );
 
-  const [color, setColor] = useState(currentFilters.color || "");
+  const [color, setColor] = useState(
+    currentFilters.color || ""
+  );
 
-  const [sort, setSort] = useState(currentFilters.sort || "");
+  const [sort, setSort] = useState(
+    currentFilters.sort || ""
+  );
 
   useEffect(() => {
     setCategory(currentFilters.category || "");
@@ -66,7 +72,11 @@ export default function ProductFilters({
 
     const query = params.toString();
 
-    router.push(query ? `/products?${query}` : "/products");
+    router.push(
+      query
+        ? `/products?${query}`
+        : "/products"
+    );
 
     setOpen(false);
   }
@@ -119,10 +129,13 @@ export default function ProductFilters({
       {/* FILTER PANEL */}
       <div
         className={`fixed z-[110] top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-2xl transition-transform duration-300 ${
-          open ? "translate-x-0" : "translate-x-full"
+          open
+            ? "translate-x-0"
+            : "translate-x-full"
         }`}
       >
         <div className="flex flex-col h-full">
+
           {/* HEADER */}
           <div className="flex items-center justify-between px-6 py-5 border-b">
             <div>
@@ -149,6 +162,7 @@ export default function ProductFilters({
 
           {/* CONTENT */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+
             {/* CATEGORY */}
             <section>
               <label className="block text-sm font-semibold mb-3">
@@ -158,13 +172,20 @@ export default function ProductFilters({
               <div className="relative">
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) =>
+                    setCategory(e.target.value)
+                  }
                   className="w-full appearance-none border border-gray-300 rounded-xl px-4 py-3 pr-10 text-sm bg-white outline-none focus:border-black"
                 >
-                  <option value="">Tüm kategoriler</option>
+                  <option value="">
+                    Tüm kategoriler
+                  </option>
 
                   {categories.map((item) => (
-                    <option key={item.id} value={item.slug}>
+                    <option
+                      key={item.id}
+                      value={item.slug}
+                    >
                       {item.name}
                     </option>
                   ))}
@@ -190,14 +211,19 @@ export default function ProductFilters({
               ) : (
                 <div className="grid grid-cols-4 gap-2">
                   {sizes.map((item) => {
-                    const selected = size === item;
+                    const selected =
+                      size === item;
 
                     return (
                       <button
                         key={item}
                         type="button"
                         onClick={() =>
-                          setSize(selected ? "" : item)
+                          setSize(
+                            selected
+                              ? ""
+                              : item
+                          )
                         }
                         className={`h-11 rounded-xl border text-sm transition-colors ${
                           selected
@@ -226,14 +252,19 @@ export default function ProductFilters({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {colors.map((item) => {
-                    const selected = color === item;
+                    const selected =
+                      color === item;
 
                     return (
                       <button
                         key={item}
                         type="button"
                         onClick={() =>
-                          setColor(selected ? "" : item)
+                          setColor(
+                            selected
+                              ? ""
+                              : item
+                          )
                         }
                         className={`px-4 py-2.5 rounded-full border text-sm transition-colors ${
                           selected
@@ -256,6 +287,8 @@ export default function ProductFilters({
               </label>
 
               <div className="space-y-2">
+
+                {/* DEFAULT */}
                 <button
                   type="button"
                   onClick={() => setSort("")}
@@ -267,42 +300,60 @@ export default function ProductFilters({
                 >
                   <span>Varsayılan</span>
 
-                  {sort === "" && <span>✓</span>}
+                  {sort === "" && (
+                    <span>✓</span>
+                  )}
                 </button>
 
+                {/* LOW TO HIGH */}
                 <button
                   type="button"
-                  onClick={() => setSort("price-asc")}
+                  onClick={() =>
+                    setSort("price-asc")
+                  }
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm ${
                     sort === "price-asc"
                       ? "border-black bg-black text-white"
                       : "border-gray-300 hover:border-black"
                   }`}
                 >
-                  <span>Fiyat: Düşükten Yükseğe</span>
+                  <span>
+                    Fiyat: Düşükten Yükseğe
+                  </span>
 
-                  {sort === "price-asc" && <span>✓</span>}
+                  {sort === "price-asc" && (
+                    <span>✓</span>
+                  )}
                 </button>
 
+                {/* HIGH TO LOW */}
                 <button
                   type="button"
-                  onClick={() => setSort("price-desc")}
+                  onClick={() =>
+                    setSort("price-desc")
+                  }
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm ${
                     sort === "price-desc"
                       ? "border-black bg-black text-white"
                       : "border-gray-300 hover:border-black"
-                  }
+                  }`}
                 >
-                  <span>Fiyat: Yüksekten Düşüğe</span>
+                  <span>
+                    Fiyat: Yüksekten Düşüğe
+                  </span>
 
-                  {sort === "price-desc" && <span>✓</span>}
+                  {sort === "price-desc" && (
+                    <span>✓</span>
+                  )}
                 </button>
+
               </div>
             </section>
           </div>
 
           {/* FOOTER */}
           <div className="border-t bg-white px-6 py-5 space-y-3">
+
             <button
               type="button"
               onClick={applyFilters}
@@ -318,6 +369,7 @@ export default function ProductFilters({
             >
               Filtreleri Temizle
             </button>
+
           </div>
         </div>
       </div>
