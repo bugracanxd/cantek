@@ -49,8 +49,12 @@ export async function GET() {
 
     if (!session?.user?.id && !session?.user?.email) {
       return NextResponse.json(
-        { error: "Giriş gerekli" },
-        { status: 401 }
+        {
+          error: "Giriş gerekli",
+        },
+        {
+          status: 401,
+        }
       );
     }
 
@@ -63,7 +67,9 @@ export async function GET() {
     if (!userId && session.user.email) {
       const user = await prisma.user.findUnique({
         where: {
-          email: session.user.email.toLowerCase().trim(),
+          email: session.user.email
+            .toLowerCase()
+            .trim(),
         },
         select: {
           id: true,
@@ -75,8 +81,12 @@ export async function GET() {
 
     if (!userId) {
       return NextResponse.json(
-        { error: "Kullanıcı bulunamadı" },
-        { status: 401 }
+        {
+          error: "Kullanıcı bulunamadı",
+        },
+        {
+          status: 401,
+        }
       );
     }
 
@@ -92,13 +102,19 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ orders });
+    return NextResponse.json({
+      orders,
+    });
   } catch (error) {
-    console.error("GET /api/orders error:", error);
+    console.error(
+      "GET /api/orders error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        error: "Siparişler alınırken bir hata oluştu.",
+        error:
+          "Siparişler alınırken bir hata oluştu.",
       },
       {
         status: 500,
@@ -120,7 +136,9 @@ export async function POST(req) {
     // SESSION
     // --------------------------------------------------
 
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(
+      authOptions
+    );
 
     if (!session?.user) {
       return NextResponse.json(
@@ -157,7 +175,8 @@ export async function POST(req) {
     // VALIDATION
     // --------------------------------------------------
 
-    const parsed = checkoutSchema.safeParse(body);
+    const parsed =
+      checkoutSchema.safeParse(body);
 
     if (!parsed.success) {
       console.error(
@@ -246,9 +265,10 @@ export async function POST(req) {
     // FIND USER
     // --------------------------------------------------
 
-    const sessionEmail = session.user.email
-      ?.toLowerCase()
-      .trim();
+    const sessionEmail =
+      session.user.email
+        ?.toLowerCase()
+        .trim();
 
     let dbUser = null;
 
@@ -307,13 +327,14 @@ export async function POST(req) {
     // PRODUCTS FROM DATABASE
     // --------------------------------------------------
 
-    const products = await prisma.product.findMany({
-      where: {
-        id: {
-          in: productIds,
+    const products =
+      await prisma.product.findMany({
+        where: {
+          id: {
+            in: productIds,
+          },
         },
-      },
-    });
+      });
 
     const productMap = new Map(
       products.map((product) => [
@@ -330,7 +351,11 @@ export async function POST(req) {
 
     let subtotal = 0;
 
-    for (let index = 0; index < items.length; index++) {
+    for (
+      let index = 0;
+      index < items.length;
+      index++
+    ) {
       const item = items[index];
 
       const product = productMap.get(
@@ -357,7 +382,9 @@ export async function POST(req) {
       // QUANTITY
       // ----------------------------------------------
 
-      const quantity = Number(item.quantity);
+      const quantity = Number(
+        item.quantity
+      );
 
       if (
         !Number.isInteger(quantity) ||
@@ -392,9 +419,8 @@ export async function POST(req) {
       // SIZE VALIDATION
       // ----------------------------------------------
 
-      const selectedSize = normalizeValue(
-        item.size
-      );
+      const selectedSize =
+        normalizeValue(item.size);
 
       const availableSizes =
         parseJsonArray(product.sizes).map(
@@ -403,7 +429,9 @@ export async function POST(req) {
 
       if (
         availableSizes.length > 0 &&
-        !availableSizes.includes(selectedSize)
+        !availableSizes.includes(
+          selectedSize
+        )
       ) {
         return NextResponse.json(
           {
@@ -419,9 +447,8 @@ export async function POST(req) {
       // COLOR VALIDATION
       // ----------------------------------------------
 
-      const selectedColor = normalizeValue(
-        item.color
-      );
+      const selectedColor =
+        normalizeValue(item.color);
 
       const availableColors =
         parseJsonArray(product.colors).map(
@@ -431,7 +458,9 @@ export async function POST(req) {
       if (
         selectedColor &&
         availableColors.length > 0 &&
-        !availableColors.includes(selectedColor)
+        !availableColors.includes(
+          selectedColor
+        )
       ) {
         return NextResponse.json(
           {
@@ -496,7 +525,8 @@ export async function POST(req) {
       // SUBTOTAL
       // ----------------------------------------------
 
-      subtotal += unitPrice * quantity;
+      subtotal +=
+        unitPrice * quantity;
 
       // ----------------------------------------------
       // ORDER ITEM
@@ -522,69 +552,15 @@ export async function POST(req) {
     );
 
     // --------------------------------------------------
-    // COUPON
+    // COUPON CODE NORMALIZATION
     // --------------------------------------------------
 
-    let discount = 0;
-    let validCouponCode = null;
-
-    if (couponCode) {
-      const normalizedCouponCode =
-        String(couponCode)
-          .trim()
-          .toUpperCase();
-
-      if (normalizedCouponCode) {
-        const coupon =
-          await prisma.coupon.findUnique({
-            where: {
-              code: normalizedCouponCode,
-            },
-          });
-
-        const now = new Date();
-
-        const couponIsValid =
-          coupon &&
-          coupon.isActive &&
-          subtotal >=
-            Number(coupon.minCartAmount || 0) &&
-          (!coupon.startsAt ||
-            coupon.startsAt <= now) &&
-          (!coupon.endsAt ||
-            coupon.endsAt >= now) &&
-          (!coupon.usageLimit ||
-            coupon.usedCount <
-              coupon.usageLimit);
-
-        if (couponIsValid) {
-          if (
-            coupon.type?.toUpperCase() ===
-            "PERCENT"
-          ) {
-            discount =
-              (subtotal *
-                Number(coupon.value || 0)) /
-              100;
-          } else {
-            discount = Number(
-              coupon.value || 0
-            );
-          }
-
-          discount = Math.max(
-            0,
-            Math.min(discount, subtotal)
-          );
-
-          discount = Number(
-            discount.toFixed(2)
-          );
-
-          validCouponCode = coupon.code;
-        }
-      }
-    }
+    const normalizedCouponCode =
+      couponCode
+        ? String(couponCode)
+            .trim()
+            .toUpperCase()
+        : "";
 
     // --------------------------------------------------
     // SITE SETTINGS / SHIPPING
@@ -615,175 +591,326 @@ export async function POST(req) {
     const settings =
       mergeSettings(settingsData);
 
-    const freeShippingThreshold = Number(
-      settings?.shipping
-        ?.freeShippingThreshold ?? 0
-    );
+    const freeShippingThreshold =
+      Number(
+        settings?.shipping
+          ?.freeShippingThreshold ?? 0
+      );
 
-    const flatRate = Number(
-      settings?.shipping?.flatRate ?? 0
-    );
+    const flatRate =
+      Number(
+        settings?.shipping?.flatRate ?? 0
+      );
 
-    const afterDiscount = Number(
-      Math.max(0, subtotal - discount).toFixed(2)
-    );
+    // --------------------------------------------------
+    // CREATE ORDER TRANSACTION
+    // --------------------------------------------------
 
-    const shippingCost =
-      afterDiscount >=
-      freeShippingThreshold
-        ? 0
-        : flatRate;
+    const order =
+      await prisma.$transaction(
+        async (tx) => {
+          // --------------------------------------------
+          // COUPON
+          // --------------------------------------------
 
-    const total = Number(
-      (afterDiscount + shippingCost).toFixed(2)
-    );
+          let discount = 0;
+          let validCouponCode = null;
+
+          if (normalizedCouponCode) {
+            const coupon =
+              await tx.coupon.findUnique({
+                where: {
+                  code: normalizedCouponCode,
+                },
+              });
+
+            const now = new Date();
+
+            const couponIsValid =
+              coupon &&
+              coupon.isActive &&
+              subtotal >=
+                Number(
+                  coupon.minCartAmount || 0
+                ) &&
+              (!coupon.startsAt ||
+                coupon.startsAt <= now) &&
+              (!coupon.endsAt ||
+                coupon.endsAt >= now) &&
+              (!coupon.usageLimit ||
+                coupon.usedCount <
+                  coupon.usageLimit);
+
+            if (couponIsValid) {
+              if (
+                coupon.type?.toUpperCase() ===
+                "PERCENT"
+              ) {
+                discount =
+                  (subtotal *
+                    Number(
+                      coupon.value || 0
+                    )) /
+                  100;
+              } else {
+                discount = Number(
+                  coupon.value || 0
+                );
+              }
+
+              discount = Math.max(
+                0,
+                Math.min(
+                  discount,
+                  subtotal
+                )
+              );
+
+              discount = Number(
+                discount.toFixed(2)
+              );
+
+              validCouponCode =
+                coupon.code;
+            }
+          }
+
+          // --------------------------------------------
+          // SHIPPING
+          // --------------------------------------------
+
+          const afterDiscount =
+            Number(
+              Math.max(
+                0,
+                subtotal - discount
+              ).toFixed(2)
+            );
+
+          const shippingCost =
+            afterDiscount >=
+            freeShippingThreshold
+              ? 0
+              : flatRate;
+
+          const total =
+            Number(
+              (
+                afterDiscount +
+                shippingCost
+              ).toFixed(2)
+            );
+
+          // --------------------------------------------
+          // STOCK RESERVATION
+          // --------------------------------------------
+
+          /*
+           * Stok kontrolünü transaction içinde
+           * tekrar yapıyoruz.
+           *
+           * Önemli:
+           *
+           * updateMany + stock >= quantity
+           *
+           * kullanıyoruz.
+           *
+           * Böylece aynı ürün için iki farklı
+           * checkout aynı anda geldiğinde stok
+           * negatif seviyeye düşmez.
+           */
+
+          for (
+            const item of orderItemsData
+          ) {
+            const stockUpdate =
+              await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+                  isActive: true,
+                  stock: {
+                    gte: item.quantity,
+                  },
+                },
+                data: {
+                  stock: {
+                    decrement:
+                      item.quantity,
+                  },
+                },
+              });
+
+            if (
+              stockUpdate.count !== 1
+            ) {
+              throw new Error(
+                `${item.name} için yeterli stok kalmadı.`
+              );
+            }
+          }
+
+          // --------------------------------------------
+          // CREATE ORDER
+          // --------------------------------------------
+
+          const createdOrder =
+            await tx.order.create({
+              data: {
+                orderNumber:
+                  generateOrderNumber(),
+
+                userId: dbUser.id,
+
+                customerName:
+                  customer.customerName
+                    .trim(),
+
+                customerEmail:
+                  customer.customerEmail
+                    .trim()
+                    .toLowerCase(),
+
+                customerPhone:
+                  customer.customerPhone
+                    .trim(),
+
+                shippingAddress:
+                  customer.shippingAddress
+                    .trim(),
+
+                subtotal,
+                shippingCost,
+                discount,
+                total,
+
+                couponCode:
+                  validCouponCode,
+
+                paymentStatus:
+                  "pending_payment",
+
+                status:
+                  "PAYMENT_PENDING",
+
+                items: {
+                  create:
+                    orderItemsData,
+                },
+              },
+
+              include: {
+                items: true,
+              },
+            });
+
+          // --------------------------------------------
+          // COUPON USAGE
+          // --------------------------------------------
+
+          /*
+           * Kupon daha önce geçerli bulundu.
+           *
+           * Ancak transaction sırasında başka bir
+           * sipariş kuponu tüketmiş olabilir.
+           *
+           * Bu nedenle usageLimit varsa atomik
+           * updateMany kullanıyoruz.
+           */
+
+          if (validCouponCode) {
+            const couponUpdate =
+              await tx.coupon.updateMany({
+                where: {
+                  code: validCouponCode,
+
+                  ...(await tx.coupon.findUnique({
+                    where: {
+                      code: validCouponCode,
+                    },
+                    select: {
+                      usageLimit: true,
+                    },
+                  }))?.usageLimit != null
+                    ? {
+                        usedCount: {
+                          lt:
+                            (
+                              await tx.coupon.findUnique(
+                                {
+                                  where: {
+                                    code:
+                                      validCouponCode,
+                                  },
+                                  select: {
+                                    usageLimit:
+                                      true,
+                                  },
+                                }
+                              )
+                            )?.usageLimit,
+                        },
+                      }
+                    : {}),
+                },
+                data: {
+                  usedCount: {
+                    increment: 1,
+                  },
+                },
+              });
+
+            if (
+              couponUpdate.count !== 1
+            ) {
+              throw new Error(
+                "Kupon kullanım limiti doldu."
+              );
+            }
+          }
+
+          return {
+            order: createdOrder,
+            discount,
+            shippingCost,
+            total,
+            couponCode: validCouponCode,
+          };
+        }
+      );
 
     // --------------------------------------------------
     // LOG
     // --------------------------------------------------
 
-    console.log("Order oluşturuluyor:", {
-      userId: dbUser.id,
-      subtotal,
-      discount,
-      shippingCost,
-      total,
-      couponCode: validCouponCode,
-      items: orderItemsData.map(
-        (item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          furSelected: item.furSelected,
-        })
-      ),
-    });
-
-    // --------------------------------------------------
-    // CREATE ORDER
-    // --------------------------------------------------
-
-    const order = await prisma.$transaction(
-      async (tx) => {
-        /*
-         * Sipariş oluşturulmadan hemen önce stokları
-         * transaction içerisinde tekrar kontrol ediyoruz.
-         *
-         * Böylece aynı ürün aynı anda iki farklı siparişte
-         * satılırken stok problemi oluşma ihtimali azaltılır.
-         */
-        for (const item of orderItemsData) {
-          const updatedProduct =
-            await tx.product.findUnique({
-              where: {
-                id: item.productId,
-              },
-              select: {
-                id: true,
-                name: true,
-                stock: true,
-                isActive: true,
-              },
-            });
-
-          if (
-            !updatedProduct ||
-            !updatedProduct.isActive
-          ) {
-            throw new Error(
-              `${item.name} artık satışta değil.`
-            );
-          }
-
-          if (
-            updatedProduct.stock <
-            item.quantity
-          ) {
-            throw new Error(
-              `${item.name} için yeterli stok kalmadı.`
-            );
-          }
-
-          await tx.product.update({
-            where: {
-              id: item.productId,
-            },
-            data: {
-              stock: {
-                decrement: item.quantity,
-              },
-            },
-          });
-        }
-
-        // ----------------------------------------------
-        // CREATE ORDER
-        // ----------------------------------------------
-
-        const createdOrder =
-          await tx.order.create({
-            data: {
-              orderNumber:
-                generateOrderNumber(),
-
-              userId: dbUser.id,
-
-              customerName:
-                customer.customerName.trim(),
-
-              customerEmail:
-                customer.customerEmail
-                  .trim()
-                  .toLowerCase(),
-
-              customerPhone:
-                customer.customerPhone.trim(),
-
-              shippingAddress:
-                customer.shippingAddress.trim(),
-
-              subtotal,
-              shippingCost,
-              discount,
-              total,
-
-              couponCode:
-                validCouponCode,
-
-              paymentStatus:
-                "pending_payment",
-
-              status:
-                "PAYMENT_PENDING",
-
-              items: {
-                create: orderItemsData,
-              },
-            },
-
-            include: {
-              items: true,
-            },
-          });
-
-        // ----------------------------------------------
-        // COUPON USAGE
-        // ----------------------------------------------
-
-        if (validCouponCode) {
-          await tx.coupon.update({
-            where: {
-              code: validCouponCode,
-            },
-            data: {
-              usedCount: {
-                increment: 1,
-              },
-            },
-          });
-        }
-
-        return createdOrder;
+    console.log(
+      "Order oluşturuldu:",
+      {
+        userId: dbUser.id,
+        orderNumber:
+          order.order.orderNumber,
+        subtotal:
+          order.order.subtotal,
+        discount:
+          order.discount,
+        shippingCost:
+          order.shippingCost,
+        total:
+          order.total,
+        couponCode:
+          order.couponCode,
+        items:
+          order.order.items.map(
+            (item) => ({
+              productId:
+                item.productId,
+              quantity:
+                item.quantity,
+              unitPrice:
+                item.unitPrice,
+              furSelected:
+                item.furSelected,
+            })
+          ),
       }
     );
 
@@ -793,7 +920,7 @@ export async function POST(req) {
 
     return NextResponse.json(
       {
-        order,
+        order: order.order,
       },
       {
         status: 201,
@@ -805,10 +932,10 @@ export async function POST(req) {
       error
     );
 
-    /*
-     * Transaction içerisindeki stok hatalarını
-     * kullanıcıya düzgün şekilde göster.
-     */
+    // --------------------------------------------------
+    // KNOWN ERRORS
+    // --------------------------------------------------
+
     if (
       error instanceof Error &&
       error.message
@@ -816,6 +943,7 @@ export async function POST(req) {
       const knownErrors = [
         "artık satışta değil",
         "yeterli stok kalmadı",
+        "Kupon kullanım limiti doldu",
       ];
 
       const isKnownError =
@@ -834,6 +962,10 @@ export async function POST(req) {
         );
       }
     }
+
+    // --------------------------------------------------
+    // GENERIC ERROR
+    // --------------------------------------------------
 
     return NextResponse.json(
       {
