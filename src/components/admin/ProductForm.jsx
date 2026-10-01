@@ -18,26 +18,35 @@ export default function ProductForm({ initial, productId }) {
     discountedPrice: initial?.discountedPrice || "",
     sku: initial?.sku || "",
     stock: initial?.stock || 0,
+
     sizes:
       typeof initial?.sizes === "string"
         ? initial.sizes
         : Array.isArray(initial?.sizes)
         ? initial.sizes.join(",")
         : "40,41,42,43,44",
+
     colors:
       typeof initial?.colors === "string"
         ? initial.colors
         : Array.isArray(initial?.colors)
         ? initial.colors.join(",")
         : "Siyah,Kahverengi",
+
     categoryIds: initial?.categories
       ? initial.categories.map((c) => c.category.id)
       : [],
+
     images: Array.isArray(initial?.images) ? initial.images : [],
+
+    // Kürk seçeneği
+    hasFurOption: initial?.hasFurOption ?? false,
+
     isFeatured: initial?.isFeatured || false,
     isNew: initial?.isNew || false,
     isBestSeller: initial?.isBestSeller || false,
     isActive: initial?.isActive ?? true,
+
     seoTitle: initial?.seoTitle || "",
     seoDescription: initial?.seoDescription || "",
   });
@@ -47,7 +56,10 @@ export default function ProductForm({ initial, productId }) {
   useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
-      .then((d) => setCategories(d.categories || []));
+      .then((d) => setCategories(d.categories || []))
+      .catch((err) => {
+        console.error("Kategori yükleme hatası:", err);
+      });
   }, []);
 
   useEffect(() => {
@@ -61,26 +73,35 @@ export default function ProductForm({ initial, productId }) {
       discountedPrice: initial.discountedPrice || "",
       sku: initial.sku || "",
       stock: initial.stock || 0,
+
       sizes:
         typeof initial.sizes === "string"
           ? initial.sizes
           : Array.isArray(initial.sizes)
           ? initial.sizes.join(",")
           : "",
+
       colors:
         typeof initial.colors === "string"
           ? initial.colors
           : Array.isArray(initial.colors)
           ? initial.colors.join(",")
           : "",
+
       categoryIds: initial.categories
         ? initial.categories.map((c) => c.category.id)
         : [],
+
       images: Array.isArray(initial.images) ? initial.images : [],
+
+      // Kürk seçeneği
+      hasFurOption: initial.hasFurOption ?? false,
+
       isFeatured: initial.isFeatured || false,
       isNew: initial.isNew || false,
       isBestSeller: initial.isBestSeller || false,
       isActive: initial.isActive ?? true,
+
       seoTitle: initial.seoTitle || "",
       seoDescription: initial.seoDescription || "",
     });
@@ -101,19 +122,27 @@ export default function ProductForm({ initial, productId }) {
         : [],
 
       price: Number(form.price),
+
       discountedPrice: form.discountedPrice
         ? Number(form.discountedPrice)
         : null,
+
       stock: Number(form.stock),
+
       sizes: form.sizes
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+
       colors: form.colors
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
+
       categoryIds: form.categoryIds,
+
+      // Kürk seçeneği
+      hasFurOption: Boolean(form.hasFurOption),
     };
 
     const url = productId
@@ -139,6 +168,7 @@ export default function ProductForm({ initial, productId }) {
       }
 
       toast.success("Kaydedildi");
+
       router.push("/admin/products");
       router.refresh();
     } catch (err) {
@@ -161,39 +191,55 @@ export default function ProductForm({ initial, productId }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-4 max-w-2xl rounded-xl bg-white p-6 shadow-sm"
+      className="max-w-2xl space-y-4 rounded-xl bg-white p-6 shadow-sm"
     >
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">Ürün Adı</label>
+
           <input
             required
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                name: e.target.value,
+              })
+            }
           />
         </div>
 
         <div>
           <label className="text-sm font-medium">Slug (URL)</label>
+
           <input
             required
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.slug}
-            onChange={(e) => setForm({ ...form, slug: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                slug: e.target.value,
+              })
+            }
           />
         </div>
       </div>
 
       <div>
         <label className="text-sm font-medium">Açıklama</label>
+
         <textarea
           required
           rows={4}
           className="mt-1 w-full rounded-lg border px-3 py-2"
           value={form.description}
           onChange={(e) =>
-            setForm({ ...form, description: e.target.value })
+            setForm({
+              ...form,
+              description: e.target.value,
+            })
           }
         />
       </div>
@@ -201,18 +247,27 @@ export default function ProductForm({ initial, productId }) {
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="text-sm font-medium">Fiyat (₺)</label>
+
           <input
             required
             type="number"
             step="0.01"
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                price: e.target.value,
+              })
+            }
           />
         </div>
 
         <div>
-          <label className="text-sm font-medium">İndirimli Fiyat</label>
+          <label className="text-sm font-medium">
+            İndirimli Fiyat
+          </label>
+
           <input
             type="number"
             step="0.01"
@@ -229,12 +284,18 @@ export default function ProductForm({ initial, productId }) {
 
         <div>
           <label className="text-sm font-medium">Stok</label>
+
           <input
             required
             type="number"
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.stock}
-            onChange={(e) => setForm({ ...form, stock: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                stock: e.target.value,
+              })
+            }
           />
         </div>
       </div>
@@ -242,16 +303,24 @@ export default function ProductForm({ initial, productId }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-sm font-medium">SKU</label>
+
           <input
             required
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.sku}
-            onChange={(e) => setForm({ ...form, sku: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                sku: e.target.value,
+              })
+            }
           />
         </div>
 
         <div>
-          <label className="text-sm font-medium">Kategoriler</label>
+          <label className="text-sm font-medium">
+            Kategoriler
+          </label>
 
           <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border p-3">
             <div className="grid grid-cols-2 gap-3">
@@ -265,6 +334,7 @@ export default function ProductForm({ initial, productId }) {
                     checked={(form.categoryIds || []).includes(c.id)}
                     onChange={() => toggleCategory(c.id)}
                   />
+
                   {c.name}
                 </label>
               ))}
@@ -278,10 +348,16 @@ export default function ProductForm({ initial, productId }) {
           <label className="text-sm font-medium">
             Bedenler (virgülle ayırın)
           </label>
+
           <input
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.sizes}
-            onChange={(e) => setForm({ ...form, sizes: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                sizes: e.target.value,
+              })
+            }
           />
         </div>
 
@@ -289,16 +365,53 @@ export default function ProductForm({ initial, productId }) {
           <label className="text-sm font-medium">
             Renkler (virgülle ayırın)
           </label>
+
           <input
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.colors}
-            onChange={(e) => setForm({ ...form, colors: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                colors: e.target.value,
+              })
+            }
           />
         </div>
       </div>
 
+      {/* KÜRK SEÇENEĞİ */}
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={form.hasFurOption}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                hasFurOption: e.target.checked,
+              })
+            }
+          />
+
+          <div>
+            <div className="font-medium text-gray-900">
+              Kürk seçeneğini göster
+            </div>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Müşteri bu ürünü kürklü olarak satın alabilir.
+              Kürk seçeneği seçildiğinde ürün fiyatına otomatik
+              olarak <strong>+500 ₺</strong> eklenir.
+            </p>
+          </div>
+        </label>
+      </div>
+
       <div>
-        <label className="text-sm font-medium">Ürün Görselleri</label>
+        <label className="text-sm font-medium">
+          Ürün Görselleri
+        </label>
 
         <div className="mt-1">
           <ImageUploader
@@ -325,6 +438,7 @@ export default function ProductForm({ initial, productId }) {
               })
             }
           />
+
           Öne Çıkan
         </label>
 
@@ -339,6 +453,7 @@ export default function ProductForm({ initial, productId }) {
               })
             }
           />
+
           Yeni Ürün
         </label>
 
@@ -353,6 +468,7 @@ export default function ProductForm({ initial, productId }) {
               })
             }
           />
+
           Çok Satan
         </label>
 
@@ -367,13 +483,17 @@ export default function ProductForm({ initial, productId }) {
               })
             }
           />
+
           Aktif
         </label>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-medium">SEO Başlık</label>
+          <label className="text-sm font-medium">
+            SEO Başlık
+          </label>
+
           <input
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.seoTitle}
@@ -387,7 +507,10 @@ export default function ProductForm({ initial, productId }) {
         </div>
 
         <div>
-          <label className="text-sm font-medium">SEO Açıklama</label>
+          <label className="text-sm font-medium">
+            SEO Açıklama
+          </label>
+
           <input
             className="mt-1 w-full rounded-lg border px-3 py-2"
             value={form.seoDescription}
@@ -402,6 +525,7 @@ export default function ProductForm({ initial, productId }) {
       </div>
 
       <button
+        type="submit"
         disabled={loading}
         className="rounded-lg bg-black px-6 py-3 font-medium text-white disabled:opacity-50"
       >
