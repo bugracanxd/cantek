@@ -3,102 +3,143 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { checkoutSchema } from "@/lib/validations";
-import { generateOrderNumber } from "@/lib/order-number";
-import { mergeSettings } from "@/lib/theme";
+
+export const dynamic = "force-dynamic";
 
 const FUR_PRICE = 500;
 
-// --------------------------------------------------
-// HELPERS
-// --------------------------------------------------
+function generateOrderNumber() {
+  const now = new Date();
 
-function parseJsonArray(value) {
-  if (Array.isArray(value)) {
-    return value;
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("");
+
+  const random = Math.floor(100000 + Math.random() * 900000);
+
+  return `CNT-${date}-${random}`;
+}
+
+function getBasePrice(product) {
+  if (
+    product.discountedPrice !== null &&
+    product.discountedPrice !== undefined &&
+    Number(product.discountedPrice) > 0 &&
+    Number(product.discountedPrice) < Number(product.price)
+  ) {
+    return Number(product.discountedPrice);
   }
 
-  if (typeof value !== "string") {
-    return [];
+  return Number(product.price);
+}
+
+function parseProductSizes(value) {
+  if (Array.isArray(value)) {
+    return value.map(String);
   }
 
   try {
-    const parsed = JSON.parse(value);
-
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
   } catch {
-    return [];
+    return String(value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }
 
-function normalizeValue(value) {
-  if (value === null || value === undefined) {
-    return "";
+function parseProductColors(value) {
+  if (Array.isArray(value)) {
+    return value.map(String);
   }
 
-  return String(value).trim();
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return String(value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
 }
 
-// --------------------------------------------------
-// GET
-// Müşterinin kendi siparişlerini listeler
-// --------------------------------------------------
+function calculateCouponDiscount(coupon, subtotal) {
+  if (!coupon) {
+    return 0;
+  }
 
-export async function GET() {
+  if (subtotal < Number(coupon.minCartAmount || 0)) {
+    return 0;
+  }
+
+  if (coupon.type === "PERCENT") {
+    return Math.min(
+      subtotal,
+      subtotal * (Number(coupon.value) / 100)
+    );
+  }
+
+  if (coupon.type === "FIXED") {
+    return Math.min(subtotal, Number(coupon.value));
+  }
+
+  return 0;
+}
+
+/* -------------------------------------------------------
+   GET
+------------------------------------------------------- */
+
+export async function GET(req) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id && !session?.user?.email) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        {
-          error: "Giriş gerekli",
-        },
-        {
-          status: 401,
-        }
+        { error: "Giriş yapmanız gerekiyor." },
+        { status: 401 }
       );
     }
 
-    let userId = session.user.id;
+    const user = await prisma.user.findUnique({
+      where: {
+        email: session.user.email,
+      },
+    });
 
-    /*
-     * Bazı NextAuth kurulumlarında session.user.id bulunmayabilir.
-     * Bu durumda email üzerinden gerçek DB kullanıcısını buluyoruz.
-     */
-    if (!userId && session.user.email) {
-      const user = await prisma.user.findUnique({
-        where: {
-          email: session.user.email
-            .toLowerCase()
-            .trim(),
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      userId = user?.id;
-    }
-
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
-        {
-          error: "Kullanıcı bulunamadı",
-        },
-        {
-          status: 401,
-        }
+        { error: "Kullanıcı bulunamadı." },
+        { status: 404 }
       );
     }
 
     const orders = await prisma.order.findMany({
       where: {
-        userId,
+        userId: user.id,
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: {
+                images: {
+                  orderBy: {
+                    order: "asc",
+                  },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
-      },
-      include: {
-        items: true,
       },
     });
 
@@ -106,15 +147,11 @@ export async function GET() {
       orders,
     });
   } catch (error) {
-    console.error(
-      "GET /api/orders error:",
-      error
-    );
+    console.error("GET /api/orders error:", error);
 
     return NextResponse.json(
       {
-        error:
-          "Siparişler alınırken bir hata oluştu.",
+        error: "Siparişler alınırken bir hata oluştu.",
       },
       {
         status: 500,
@@ -123,28 +160,18 @@ export async function GET() {
   }
 }
 
-// --------------------------------------------------
-// POST
-// Sipariş oluştur
-// --------------------------------------------------
+/* -------------------------------------------------------
+   POST
+------------------------------------------------------- */
 
 export async function POST(req) {
   try {
-    console.log("POST /api/orders başladı");
+    const session = await getServerSession(authOptions);
 
-    // --------------------------------------------------
-    // SESSION
-    // --------------------------------------------------
-
-    const session = await getServerSession(
-      authOptions
-    );
-
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json(
         {
-          error:
-            "Sipariş oluşturmak için giriş yapmalısınız.",
+          error: "Sipariş oluşturmak için giriş yapmalısınız.",
         },
         {
           status: 401,
@@ -152,38 +179,11 @@ export async function POST(req) {
       );
     }
 
-    // --------------------------------------------------
-    // REQUEST BODY
-    // --------------------------------------------------
+    const body = await req.json();
 
-    let body;
-
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json(
-        {
-          error: "Geçersiz istek verisi.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // --------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------
-
-    const parsed =
-      checkoutSchema.safeParse(body);
+    const parsed = checkoutSchema.safeParse(body);
 
     if (!parsed.success) {
-      console.error(
-        "Checkout validation error:",
-        parsed.error.issues
-      );
-
       return NextResponse.json(
         {
           error:
@@ -197,730 +197,499 @@ export async function POST(req) {
     }
 
     const {
-      items,
+      customerName,
+      customerEmail,
+      customerPhone,
+      shippingAddress,
       couponCode,
-      ...customer
+      items,
     } = parsed.data;
 
-    // --------------------------------------------------
-    // EXTRA CUSTOMER VALIDATION
-    // --------------------------------------------------
+    const user = await prisma.user.findUnique({
+      where: {
+        email: session.user.email,
+      },
+    });
 
-    if (!customer.customerName?.trim()) {
+    if (!user) {
       return NextResponse.json(
         {
-          error: "Ad soyad zorunludur.",
+          error: "Kullanıcı bulunamadı.",
         },
         {
-          status: 400,
+          status: 404,
         }
       );
     }
 
-    if (!customer.customerEmail?.trim()) {
-      return NextResponse.json(
-        {
-          error: "E-posta zorunludur.",
+    /* ---------------------------------------------------
+       ÜRÜNLERİ DB'DEN AL
+    --------------------------------------------------- */
+
+    const productIds = [
+      ...new Set(items.map((item) => item.productId)),
+    ];
+
+    const products = await prisma.product.findMany({
+      where: {
+        id: {
+          in: productIds,
         },
-        {
-          status: 400,
-        }
-      );
-    }
+      },
+    });
 
-    if (!customer.customerPhone?.trim()) {
-      return NextResponse.json(
-        {
-          error: "Telefon zorunludur.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+    const productMap = new Map(
+      products.map((product) => [product.id, product])
+    );
 
-    if (!customer.shippingAddress?.trim()) {
-      return NextResponse.json(
-        {
-          error: "Teslimat adresi zorunludur.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+    /* ---------------------------------------------------
+       ÜRÜNLERİ VE SEÇENEKLERİ DOĞRULA
+    --------------------------------------------------- */
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Sepetiniz boş.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
+    const validatedItems = [];
 
-    // --------------------------------------------------
-    // FIND USER
-    // --------------------------------------------------
+    for (const item of items) {
+      const product = productMap.get(item.productId);
 
-    const sessionEmail =
-      session.user.email
-        ?.toLowerCase()
-        .trim();
+      if (!product) {
+        return NextResponse.json(
+          {
+            error: "Sepetteki ürünlerden biri bulunamadı.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
 
-    let dbUser = null;
+      if (!product.isActive) {
+        return NextResponse.json(
+          {
+            error: `"${product.name}" ürünü artık satışta değil.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
 
-    if (session.user.id) {
-      dbUser = await prisma.user.findUnique({
-        where: {
-          id: session.user.id,
-        },
+      const quantity = Number(item.quantity);
+
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return NextResponse.json(
+          {
+            error: `"${product.name}" için geçersiz adet.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const sizes = parseProductSizes(product.sizes);
+      const colors = parseProductColors(product.colors);
+
+      if (!sizes.includes(String(item.size))) {
+        return NextResponse.json(
+          {
+            error: `"${product.name}" için seçilen beden mevcut değil.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        item.color &&
+        colors.length > 0 &&
+        !colors.includes(String(item.color))
+      ) {
+        return NextResponse.json(
+          {
+            error: `"${product.name}" için seçilen renk mevcut değil.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const furSelected = Boolean(item.furSelected);
+
+      if (furSelected && !product.hasFurOption) {
+        return NextResponse.json(
+          {
+            error: `"${product.name}" ürünü için kürk seçeneği kullanılamaz.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const basePrice = getBasePrice(product);
+
+      /*
+       * Fiyat BURADA DB'den hesaplanıyor.
+       *
+       * Frontend'den gelen price değerine güvenilmiyor.
+       */
+      const unitPrice =
+        basePrice + (furSelected ? FUR_PRICE : 0);
+
+      validatedItems.push({
+        product,
+        productId: product.id,
+        name: product.name,
+        size: String(item.size),
+        color: item.color
+          ? String(item.color)
+          : null,
+        quantity,
+        furSelected,
+        unitPrice,
       });
     }
 
-    if (!dbUser && sessionEmail) {
-      dbUser = await prisma.user.findUnique({
+    /* ---------------------------------------------------
+       SUBTOTAL
+    --------------------------------------------------- */
+
+    const subtotal = validatedItems.reduce(
+      (sum, item) =>
+        sum + item.unitPrice * item.quantity,
+      0
+    );
+
+    /* ---------------------------------------------------
+       COUPON
+    --------------------------------------------------- */
+
+    let coupon = null;
+    let discount = 0;
+
+    if (couponCode) {
+      const normalizedCouponCode = String(couponCode)
+        .trim()
+        .toUpperCase();
+
+      coupon = await prisma.coupon.findUnique({
         where: {
-          email: sessionEmail,
+          code: normalizedCouponCode,
         },
       });
+
+      if (!coupon) {
+        return NextResponse.json(
+          {
+            error: "Geçersiz kupon kodu.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (!coupon.isActive) {
+        return NextResponse.json(
+          {
+            error: "Bu kupon aktif değil.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const now = new Date();
+
+      if (
+        coupon.startsAt &&
+        now < new Date(coupon.startsAt)
+      ) {
+        return NextResponse.json(
+          {
+            error: "Bu kupon henüz kullanıma açılmadı.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        coupon.endsAt &&
+        now > new Date(coupon.endsAt)
+      ) {
+        return NextResponse.json(
+          {
+            error: "Bu kuponun kullanım süresi doldu.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        coupon.usageLimit !== null &&
+        coupon.usedCount >= coupon.usageLimit
+      ) {
+        return NextResponse.json(
+          {
+            error: "Bu kuponun kullanım limiti doldu.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      if (
+        subtotal < Number(coupon.minCartAmount || 0)
+      ) {
+        return NextResponse.json(
+          {
+            error: `Bu kuponu kullanmak için minimum sepet tutarı ${Number(
+              coupon.minCartAmount || 0
+            ).toFixed(2)} ₺ olmalıdır.`,
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      discount = calculateCouponDiscount(
+        coupon,
+        subtotal
+      );
     }
 
-    if (!dbUser) {
+    /* ---------------------------------------------------
+       KARGO
+    --------------------------------------------------- */
+
+    /*
+     * Mevcut sistemde shippingCost 0.
+     * Daha sonra ücretsiz kargo limiti eklenebilir.
+     */
+    const shippingCost = 0;
+
+    const total = Math.max(
+      0,
+      subtotal - discount + shippingCost
+    );
+
+    /* ---------------------------------------------------
+       SİPARİŞ NUMARASI
+    --------------------------------------------------- */
+
+    let orderNumber;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const candidate = generateOrderNumber();
+
+      const existing = await prisma.order.findUnique({
+        where: {
+          orderNumber: candidate,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existing) {
+        orderNumber = candidate;
+        break;
+      }
+    }
+
+    if (!orderNumber) {
       return NextResponse.json(
         {
           error:
-            "Kullanıcı hesabınız bulunamadı. Lütfen tekrar giriş yapın.",
+            "Sipariş numarası oluşturulamadı. Lütfen tekrar deneyin.",
         },
         {
-          status: 401,
+          status: 500,
         }
       );
     }
 
-    // --------------------------------------------------
-    // PRODUCT IDS
-    // --------------------------------------------------
-
-    const productIds = [
-      ...new Set(
-        items
-          .map((item) => item.productId)
-          .filter(Boolean)
-      ),
-    ];
-
-    if (productIds.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Geçerli ürün bulunamadı.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    // --------------------------------------------------
-    // PRODUCTS FROM DATABASE
-    // --------------------------------------------------
-
-    const products =
-      await prisma.product.findMany({
-        where: {
-          id: {
-            in: productIds,
-          },
-        },
-      });
-
-    const productMap = new Map(
-      products.map((product) => [
-        product.id,
-        product,
-      ])
-    );
-
-    // --------------------------------------------------
-    // CALCULATE ORDER ITEMS
-    // --------------------------------------------------
-
-    const orderItemsData = [];
-
-    let subtotal = 0;
-
-    for (
-      let index = 0;
-      index < items.length;
-      index++
-    ) {
-      const item = items[index];
-
-      const product = productMap.get(
-        item.productId
-      );
-
-      // ----------------------------------------------
-      // PRODUCT EXISTS
-      // ----------------------------------------------
-
-      if (!product || !product.isActive) {
-        return NextResponse.json(
-          {
-            error:
-              "Ürün bulunamadı veya satışa kapalı.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // QUANTITY
-      // ----------------------------------------------
-
-      const quantity = Number(
-        item.quantity
-      );
-
-      if (
-        !Number.isInteger(quantity) ||
-        quantity <= 0
-      ) {
-        return NextResponse.json(
-          {
-            error: `${product.name} için geçersiz adet.`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // STOCK
-      // ----------------------------------------------
-
-      if (product.stock < quantity) {
-        return NextResponse.json(
-          {
-            error: `${product.name} için yeterli stok yok. Mevcut stok: ${product.stock}`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // SIZE VALIDATION
-      // ----------------------------------------------
-
-      const selectedSize =
-        normalizeValue(item.size);
-
-      const availableSizes =
-        parseJsonArray(product.sizes).map(
-          normalizeValue
-        );
-
-      if (
-        availableSizes.length > 0 &&
-        !availableSizes.includes(
-          selectedSize
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error: `${product.name} için seçilen beden geçersiz.`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // COLOR VALIDATION
-      // ----------------------------------------------
-
-      const selectedColor =
-        normalizeValue(item.color);
-
-      const availableColors =
-        parseJsonArray(product.colors).map(
-          normalizeValue
-        );
-
-      if (
-        selectedColor &&
-        availableColors.length > 0 &&
-        !availableColors.includes(
-          selectedColor
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error: `${product.name} için seçilen renk geçersiz.`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // FUR OPTION
-      // ----------------------------------------------
-
-      const furSelected =
-        item.furSelected === true ||
-        item.furSelected === "true";
-
-      /*
-       * Müşteri kürk seçtiyse ürünün DB'deki
-       * hasFurOption değeri kesinlikle true olmalı.
-       *
-       * Frontend bunu değiştiremez.
-       */
-      if (
-        furSelected &&
-        !product.hasFurOption
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              `${product.name} için kürk seçeneği mevcut değil.`,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      // ----------------------------------------------
-      // BASE PRICE
-      // ----------------------------------------------
-
-      const basePrice =
-        product.discountedPrice !== null &&
-        product.discountedPrice !== undefined &&
-        Number(product.discountedPrice) <
-          Number(product.price)
-          ? Number(product.discountedPrice)
-          : Number(product.price);
-
-      // ----------------------------------------------
-      // FUR PRICE
-      // ----------------------------------------------
-
-      const unitPrice =
-        basePrice +
-        (furSelected ? FUR_PRICE : 0);
-
-      // ----------------------------------------------
-      // SUBTOTAL
-      // ----------------------------------------------
-
-      subtotal +=
-        unitPrice * quantity;
-
-      // ----------------------------------------------
-      // ORDER ITEM
-      // ----------------------------------------------
-
-      orderItemsData.push({
-        productId: product.id,
-        name: product.name,
-        size: selectedSize,
-        color: selectedColor || "",
-        quantity,
-        unitPrice,
-        furSelected,
-      });
-    }
-
-    // --------------------------------------------------
-    // ROUND SUBTOTAL
-    // --------------------------------------------------
-
-    subtotal = Number(
-      subtotal.toFixed(2)
-    );
-
-    // --------------------------------------------------
-    // COUPON CODE NORMALIZATION
-    // --------------------------------------------------
-
-    const normalizedCouponCode =
-      couponCode
-        ? String(couponCode)
-            .trim()
-            .toUpperCase()
-        : "";
-
-    // --------------------------------------------------
-    // SITE SETTINGS / SHIPPING
-    // --------------------------------------------------
-
-    const settingsRow =
-      await prisma.siteSettings.findUnique({
-        where: {
-          id: "main",
-        },
-      });
-
-    let settingsData = null;
-
-    try {
-      settingsData = settingsRow?.data
-        ? JSON.parse(settingsRow.data)
-        : null;
-    } catch (error) {
-      console.error(
-        "SiteSettings JSON hatası:",
-        error
-      );
-
-      settingsData = null;
-    }
-
-    const settings =
-      mergeSettings(settingsData);
-
-    const freeShippingThreshold =
-      Number(
-        settings?.shipping
-          ?.freeShippingThreshold ?? 0
-      );
-
-    const flatRate =
-      Number(
-        settings?.shipping?.flatRate ?? 0
-      );
-
-    // --------------------------------------------------
-    // CREATE ORDER TRANSACTION
-    // --------------------------------------------------
-
-    const order =
-      await prisma.$transaction(
-        async (tx) => {
-          // --------------------------------------------
-          // COUPON
-          // --------------------------------------------
-
-          let discount = 0;
-          let validCouponCode = null;
-
-          if (normalizedCouponCode) {
-            const coupon =
-              await tx.coupon.findUnique({
-                where: {
-                  code: normalizedCouponCode,
-                },
-              });
-
-            const now = new Date();
-
-            const couponIsValid =
-              coupon &&
-              coupon.isActive &&
-              subtotal >=
-                Number(
-                  coupon.minCartAmount || 0
-                ) &&
-              (!coupon.startsAt ||
-                coupon.startsAt <= now) &&
-              (!coupon.endsAt ||
-                coupon.endsAt >= now) &&
-              (!coupon.usageLimit ||
-                coupon.usedCount <
-                  coupon.usageLimit);
-
-            if (couponIsValid) {
-              if (
-                coupon.type?.toUpperCase() ===
-                "PERCENT"
-              ) {
-                discount =
-                  (subtotal *
-                    Number(
-                      coupon.value || 0
-                    )) /
-                  100;
-              } else {
-                discount = Number(
-                  coupon.value || 0
-                );
-              }
-
-              discount = Math.max(
-                0,
-                Math.min(
-                  discount,
-                  subtotal
-                )
-              );
-
-              discount = Number(
-                discount.toFixed(2)
-              );
-
-              validCouponCode =
-                coupon.code;
-            }
-          }
-
-          // --------------------------------------------
-          // SHIPPING
-          // --------------------------------------------
-
-          const afterDiscount =
-            Number(
-              Math.max(
-                0,
-                subtotal - discount
-              ).toFixed(2)
-            );
-
-          const shippingCost =
-            afterDiscount >=
-            freeShippingThreshold
-              ? 0
-              : flatRate;
-
-          const total =
-            Number(
-              (
-                afterDiscount +
-                shippingCost
-              ).toFixed(2)
-            );
-
-          // --------------------------------------------
-          // STOCK RESERVATION
-          // --------------------------------------------
-
-          /*
-           * Stok kontrolünü transaction içinde
-           * tekrar yapıyoruz.
-           *
-           * Önemli:
-           *
-           * updateMany + stock >= quantity
-           *
-           * kullanıyoruz.
-           *
-           * Böylece aynı ürün için iki farklı
-           * checkout aynı anda geldiğinde stok
-           * negatif seviyeye düşmez.
-           */
-
-          for (
-            const item of orderItemsData
-          ) {
-            const stockUpdate =
-              await tx.product.updateMany({
-                where: {
-                  id: item.productId,
-                  isActive: true,
-                  stock: {
-                    gte: item.quantity,
-                  },
-                },
-                data: {
-                  stock: {
-                    decrement:
-                      item.quantity,
-                  },
-                },
-              });
-
-            if (
-              stockUpdate.count !== 1
-            ) {
-              throw new Error(
-                `${item.name} için yeterli stok kalmadı.`
-              );
-            }
-          }
-
-          // --------------------------------------------
-          // CREATE ORDER
-          // --------------------------------------------
-
-          const createdOrder =
-            await tx.order.create({
-              data: {
-                orderNumber:
-                  generateOrderNumber(),
-
-                userId: dbUser.id,
-
-                customerName:
-                  customer.customerName
-                    .trim(),
-
-                customerEmail:
-                  customer.customerEmail
-                    .trim()
-                    .toLowerCase(),
-
-                customerPhone:
-                  customer.customerPhone
-                    .trim(),
-
-                shippingAddress:
-                  customer.shippingAddress
-                    .trim(),
-
-                subtotal,
-                shippingCost,
-                discount,
-                total,
-
-                couponCode:
-                  validCouponCode,
-
-                paymentStatus:
-                  "pending_payment",
-
-                status:
-                  "PAYMENT_PENDING",
-
-                items: {
-                  create:
-                    orderItemsData,
+    /* ---------------------------------------------------
+       TRANSACTION
+    --------------------------------------------------- */
+
+    const order = await prisma.$transaction(
+      async (tx) => {
+        /*
+         * Stokları transaction içinde tekrar kontrol ediyoruz.
+         *
+         * Böylece iki farklı kişi aynı anda son ürünü almaya
+         * çalışırsa stok eksiye düşmez.
+         */
+        for (const item of validatedItems) {
+          const stockUpdate =
+            await tx.product.updateMany({
+              where: {
+                id: item.productId,
+                isActive: true,
+                stock: {
+                  gte: item.quantity,
                 },
               },
-
-              include: {
-                items: true,
+              data: {
+                stock: {
+                  decrement: item.quantity,
+                },
               },
             });
 
-          // --------------------------------------------
-          // COUPON USAGE
-          // --------------------------------------------
+          if (stockUpdate.count !== 1) {
+            throw new Error(
+              `STOCK_ERROR:${item.productId}:${item.name}`
+            );
+          }
+        }
 
-          /*
-           * Kupon daha önce geçerli bulundu.
-           *
-           * Ancak transaction sırasında başka bir
-           * sipariş kuponu tüketmiş olabilir.
-           *
-           * Bu nedenle usageLimit varsa atomik
-           * updateMany kullanıyoruz.
-           */
+        /*
+         * Kuponu transaction içinde tekrar kontrol ediyoruz.
+         *
+         * Böylece iki kişi aynı anda son kupon kullanımını
+         * tüketmeye çalıştığında limit aşılmıyor.
+         */
+        let finalCoupon = null;
 
-          if (validCouponCode) {
-            const couponUpdate =
-              await tx.coupon.updateMany({
-                where: {
-                  code: validCouponCode,
+        if (coupon) {
+          finalCoupon = await tx.coupon.findUnique({
+            where: {
+              id: coupon.id,
+            },
+          });
 
-                  ...(await tx.coupon.findUnique({
-                    where: {
-                      code: validCouponCode,
-                    },
-                    select: {
-                      usageLimit: true,
-                    },
-                  }))?.usageLimit != null
-                    ? {
-                        usedCount: {
-                          lt:
-                            (
-                              await tx.coupon.findUnique(
-                                {
-                                  where: {
-                                    code:
-                                      validCouponCode,
-                                  },
-                                  select: {
-                                    usageLimit:
-                                      true,
-                                  },
-                                }
-                              )
-                            )?.usageLimit,
-                        },
-                      }
-                    : {}),
-                },
-                data: {
-                  usedCount: {
-                    increment: 1,
-                  },
-                },
-              });
-
-            if (
-              couponUpdate.count !== 1
-            ) {
-              throw new Error(
-                "Kupon kullanım limiti doldu."
-              );
-            }
+          if (!finalCoupon) {
+            throw new Error(
+              "COUPON_ERROR:Kupon bulunamadı."
+            );
           }
 
-          return {
-            order: createdOrder,
-            discount,
-            shippingCost,
-            total,
-            couponCode: validCouponCode,
-          };
+          if (!finalCoupon.isActive) {
+            throw new Error(
+              "COUPON_ERROR:Kupon artık aktif değil."
+            );
+          }
+
+          const now = new Date();
+
+          if (
+            finalCoupon.startsAt &&
+            now < new Date(finalCoupon.startsAt)
+          ) {
+            throw new Error(
+              "COUPON_ERROR:Kupon henüz kullanıma açılmadı."
+            );
+          }
+
+          if (
+            finalCoupon.endsAt &&
+            now > new Date(finalCoupon.endsAt)
+          ) {
+            throw new Error(
+              "COUPON_ERROR:Kuponun kullanım süresi doldu."
+            );
+          }
+
+          if (
+            finalCoupon.usageLimit !== null &&
+            finalCoupon.usedCount >=
+              finalCoupon.usageLimit
+          ) {
+            throw new Error(
+              "COUPON_ERROR:Kuponun kullanım limiti doldu."
+            );
+          }
+
+          const couponUpdate =
+            await tx.coupon.updateMany({
+              where: {
+                id: finalCoupon.id,
+                isActive: true,
+                ...(finalCoupon.usageLimit !== null
+                  ? {
+                      usedCount: {
+                        lt: finalCoupon.usageLimit,
+                      },
+                    }
+                  : {}),
+              },
+              data: {
+                usedCount: {
+                  increment: 1,
+                },
+              },
+            });
+
+          if (couponUpdate.count !== 1) {
+            throw new Error(
+              "COUPON_ERROR:Kupon kullanım limiti doldu."
+            );
+          }
         }
-      );
 
-    // --------------------------------------------------
-    // LOG
-    // --------------------------------------------------
+        const createdOrder =
+          await tx.order.create({
+            data: {
+              orderNumber,
+              userId: user.id,
 
-    console.log(
-      "Order oluşturuldu:",
-      {
-        userId: dbUser.id,
-        orderNumber:
-          order.order.orderNumber,
-        subtotal:
-          order.order.subtotal,
-        discount:
-          order.discount,
-        shippingCost:
-          order.shippingCost,
-        total:
-          order.total,
-        couponCode:
-          order.couponCode,
-        items:
-          order.order.items.map(
-            (item) => ({
-              productId:
-                item.productId,
-              quantity:
-                item.quantity,
-              unitPrice:
-                item.unitPrice,
-              furSelected:
-                item.furSelected,
-            })
-          ),
+              customerName,
+              customerEmail,
+              customerPhone,
+              shippingAddress,
+
+              subtotal,
+              shippingCost,
+              discount,
+              total,
+
+              couponCode: coupon
+                ? coupon.code
+                : null,
+
+              paymentStatus: "pending_payment",
+              status: "PAYMENT_PENDING",
+
+              items: {
+                create: validatedItems.map(
+                  (item) => ({
+                    productId: item.productId,
+                    name: item.name,
+                    size: item.size,
+                    color: item.color,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    furSelected:
+                      item.furSelected,
+                  })
+                ),
+              },
+            },
+
+            include: {
+              items: true,
+            },
+          });
+
+        return createdOrder;
       }
     );
 
-    // --------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------
-
     return NextResponse.json(
       {
-        order: order.order,
+        success: true,
+        order,
       },
       {
         status: 201,
@@ -932,40 +701,38 @@ export async function POST(req) {
       error
     );
 
-    // --------------------------------------------------
-    // KNOWN ERRORS
-    // --------------------------------------------------
+    const message = error?.message || "";
 
-    if (
-      error instanceof Error &&
-      error.message
-    ) {
-      const knownErrors = [
-        "artık satışta değil",
-        "yeterli stok kalmadı",
-        "Kupon kullanım limiti doldu",
-      ];
+    if (message.startsWith("STOCK_ERROR:")) {
+      const parts = message.split(":");
+      const productName =
+        parts.slice(2).join(":") ||
+        "Ürün";
 
-      const isKnownError =
-        knownErrors.some((message) =>
-          error.message.includes(message)
-        );
-
-      if (isKnownError) {
-        return NextResponse.json(
-          {
-            error: error.message,
-          },
-          {
-            status: 400,
-          }
-        );
-      }
+      return NextResponse.json(
+        {
+          error: `"${productName}" için yeterli stok bulunmuyor.`,
+        },
+        {
+          status: 400,
+        }
+      );
     }
 
-    // --------------------------------------------------
-    // GENERIC ERROR
-    // --------------------------------------------------
+    if (message.startsWith("COUPON_ERROR:")) {
+      return NextResponse.json(
+        {
+          error:
+            message.replace(
+              "COUPON_ERROR:",
+              ""
+            ) || "Kupon kullanılamadı.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
     return NextResponse.json(
       {
