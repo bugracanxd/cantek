@@ -8,21 +8,7 @@ export const metadata = {
   title: "Tüm Ürünler",
 };
 
-/**
- * sizes / colors alanlarını güvenli şekilde diziye çevirir.
- *
- * Desteklenen formatlar:
- *
- * ["39","40","41","42"]
- *
- * veya
- *
- * 39,40,41,42
- *
- * veya
- *
- * 39, 40, 41, 42
- */
+// JSON veya normal virgüllü string'i diziye çevirir
 function parseProductList(value) {
   if (!value) return [];
 
@@ -30,7 +16,8 @@ function parseProductList(value) {
 
   if (!text) return [];
 
-  // Önce JSON array deniyoruz
+  // JSON formatı:
+  // ["39","40","41","42"]
   try {
     const parsed = JSON.parse(text);
 
@@ -40,10 +27,11 @@ function parseProductList(value) {
         .filter(Boolean);
     }
   } catch {
-    // JSON değilse aşağıdaki normal string yöntemi kullanılacak
+    // JSON değilse normal string olarak devam
   }
 
-  // Eski virgüllü format
+  // Eski format:
+  // 39,40,41,42
   return text
     .replace(/^\[/, "")
     .replace(/\]$/, "")
@@ -57,52 +45,55 @@ function parseProductList(value) {
     .filter(Boolean);
 }
 
-/**
- * Prisma tarafında hem JSON array hem CSV formatını
- * destekleyecek filtre oluşturur.
- */
-function buildListFilter(value) {
-  if (!value) return null;
+// JSON array veya CSV formatındaki string alanında
+// belirli bir değeri bulmak için Prisma koşulları
+function buildStringConditions(field, value) {
+  if (!value) return [];
 
-  const normalized = value.trim();
+  const normalized = String(value).trim();
 
-  if (!normalized) return null;
-
-  return {
-    OR: [
-      // Tek değer
-      {
+  return [
+    {
+      [field]: {
         equals: normalized,
       },
-
-      // JSON array:
-      // ["40","41","42"]
-      {
+    },
+    {
+      [field]: {
         contains: `"${normalized}"`,
       },
-
-      // CSV:
-      // 40,41,42
-      {
+    },
+    {
+      [field]: {
         startsWith: `${normalized},`,
       },
-      {
+    },
+    {
+      [field]: {
         endsWith: `,${normalized}`,
       },
-      {
+    },
+    {
+      [field]: {
         contains: `,${normalized},`,
       },
-      {
+    },
+    {
+      [field]: {
         contains: `, ${normalized},`,
       },
-      {
+    },
+    {
+      [field]: {
         startsWith: `${normalized}, `,
       },
-      {
+    },
+    {
+      [field]: {
         endsWith: `, ${normalized}`,
       },
-    ],
-  };
+    },
+  ];
 }
 
 export default async function AllProductsPage({
@@ -114,6 +105,8 @@ export default async function AllProductsPage({
   const size = params.size || "";
   const color = params.color || "";
   const sort = params.sort || "";
+
+  // ---------------- WHERE ----------------
 
   const where = {
     isActive: true,
@@ -134,18 +127,39 @@ export default async function AllProductsPage({
 
   // ---------------- SIZE ----------------
 
-  const sizeFilter = buildListFilter(size);
+  if (size) {
+    const sizeConditions = buildStringConditions(
+      "sizes",
+      size
+    );
 
-  if (sizeFilter) {
-    where.sizes = sizeFilter;
+    where.OR = sizeConditions;
   }
 
   // ---------------- COLOR ----------------
 
-  const colorFilter = buildListFilter(color);
+  if (color) {
+    const colorConditions = buildStringConditions(
+      "colors",
+      color
+    );
 
-  if (colorFilter) {
-    where.colors = colorFilter;
+    // Eğer hem beden hem renk seçildiyse
+    // ikisinin de sağlanması gerekiyor.
+    if (size) {
+      delete where.OR;
+
+      where.AND = [
+        {
+          OR: buildStringConditions("sizes", size),
+        },
+        {
+          OR: buildStringConditions("colors", color),
+        },
+      ];
+    } else {
+      where.OR = colorConditions;
+    }
   }
 
   // ---------------- SORT ----------------
@@ -166,57 +180,55 @@ export default async function AllProductsPage({
     };
   }
 
-  const [
-    products,
-    categories,
-    allProducts,
-  ] = await Promise.all([
-    prisma.product.findMany({
-      where,
+  // ---------------- PRODUCTS ----------------
 
-      include: {
-        images: {
-          orderBy: {
-            order: "asc",
-          },
-          take: 1,
+  const products = await prisma.product.findMany({
+    where,
+
+    include: {
+      images: {
+        orderBy: {
+          order: "asc",
         },
+        take: 1,
+      },
 
-        categories: {
-          include: {
-            category: true,
-          },
+      categories: {
+        include: {
+          category: true,
         },
       },
+    },
 
-      orderBy,
-    }),
+    orderBy,
+  });
 
-    // Aktif kategoriler
-    prisma.category.findMany({
-      where: {
-        isActive: true,
-      },
+  // ---------------- CATEGORIES ----------------
 
-      orderBy: {
-        order: "asc",
-      },
-    }),
+  const categories = await prisma.category.findMany({
+    where: {
+      isActive: true,
+    },
 
-    // Filtre seçeneklerini oluşturmak için
-    prisma.product.findMany({
-      where: {
-        isActive: true,
-      },
+    orderBy: {
+      order: "asc",
+    },
+  });
 
-      select: {
-        sizes: true,
-        colors: true,
-      },
-    }),
-  ]);
+  // ---------------- FILTER DATA ----------------
 
-  // ---------------- AVAILABLE SIZES ----------------
+  const allProducts = await prisma.product.findMany({
+    where: {
+      isActive: true,
+    },
+
+    select: {
+      sizes: true,
+      colors: true,
+    },
+  });
+
+  // ---------------- SIZES ----------------
 
   const sizes = [
     ...new Set(
@@ -238,7 +250,7 @@ export default async function AllProductsPage({
     return a.localeCompare(b, "tr");
   });
 
-  // ---------------- AVAILABLE COLORS ----------------
+  // ---------------- COLORS ----------------
 
   const colors = [
     ...new Set(
@@ -254,6 +266,7 @@ export default async function AllProductsPage({
     <div className="site-container py-10">
 
       {/* HEADER */}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-8">
 
         <div>
