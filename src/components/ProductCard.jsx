@@ -22,14 +22,14 @@ export default function ProductCard({ product, index = 0 }) {
       transition={{ duration: 0.45, delay: Math.min(index * 0.05, 0.3) }}
     >
       <Link href={`/products/${product.slug}`} className="group block">
-        <div className="overflow-hidden rounded-[28px] bg-[#F4F1EA] transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
+        <div className="overflow-hidden rounded-[28px] bg-white transition-all duration-500 group-hover:-translate-y-1 group-hover:shadow-2xl">
 
           {/* Görsel */}
-          <div className="relative aspect-[4/5] overflow-hidden bg-[#F4F1EA]">
+          <div className="relative aspect-[4/5] overflow-hidden bg-white">
             <img
               src={img}
               alt={product.name}
-              className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+              className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
             />
 
             {product.isNew && (
@@ -47,7 +47,7 @@ export default function ProductCard({ product, index = 0 }) {
           </div>
 
           {/* Bilgiler */}
-          <div className="p-5">
+          <div className="bg-white p-5">
             <p className="text-[11px] uppercase tracking-[0.28em] text-neutral-400">
               CANTEK
             </p>
@@ -63,6 +63,7 @@ export default function ProductCard({ product, index = 0 }) {
                     <p className="text-xl font-bold">
                       {product.discountedPrice.toFixed(2)} ₺
                     </p>
+
                     <p className="text-sm text-neutral-400 line-through">
                       {product.price.toFixed(2)} ₺
                     </p>
@@ -74,7 +75,7 @@ export default function ProductCard({ product, index = 0 }) {
                 )}
               </div>
 
-              <div className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium transition-all duration-300 group-hover:bg-black group-hover:text-white group-hover:border-black">
+              <div className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-medium transition-all duration-300 group-hover:border-black group-hover:bg-black group-hover:text-white">
                 İncele
               </div>
             </div>
