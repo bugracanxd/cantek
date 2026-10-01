@@ -19,12 +19,16 @@ export default function ProductFilters({
     currentFilters.category || ""
   );
 
-  const [size, setSize] = useState(
-    currentFilters.size || ""
+  const [selectedSizes, setSelectedSizes] = useState(
+    currentFilters.size
+      ? currentFilters.size.split(",").filter(Boolean)
+      : []
   );
 
-  const [color, setColor] = useState(
-    currentFilters.color || ""
+  const [selectedColors, setSelectedColors] = useState(
+    currentFilters.color
+      ? currentFilters.color.split(",").filter(Boolean)
+      : []
   );
 
   const [sort, setSort] = useState(
@@ -33,8 +37,19 @@ export default function ProductFilters({
 
   useEffect(() => {
     setCategory(currentFilters.category || "");
-    setSize(currentFilters.size || "");
-    setColor(currentFilters.color || "");
+
+    setSelectedSizes(
+      currentFilters.size
+        ? currentFilters.size.split(",").filter(Boolean)
+        : []
+    );
+
+    setSelectedColors(
+      currentFilters.color
+        ? currentFilters.color.split(",").filter(Boolean)
+        : []
+    );
+
     setSort(currentFilters.sort || "");
   }, [
     currentFilters.category,
@@ -43,27 +58,65 @@ export default function ProductFilters({
     currentFilters.sort,
   ]);
 
-  function applyFilters() {
-    const params = new URLSearchParams(searchParams.toString());
+  // ---------------- SIZE TOGGLE ----------------
 
+  function toggleSize(size) {
+    setSelectedSizes((current) => {
+      if (current.includes(size)) {
+        return current.filter((item) => item !== size);
+      }
+
+      return [...current, size];
+    });
+  }
+
+  // ---------------- COLOR TOGGLE ----------------
+
+  function toggleColor(color) {
+    setSelectedColors((current) => {
+      if (current.includes(color)) {
+        return current.filter((item) => item !== color);
+      }
+
+      return [...current, color];
+    });
+  }
+
+  // ---------------- APPLY ----------------
+
+  function applyFilters() {
+    const params = new URLSearchParams(
+      searchParams.toString()
+    );
+
+    // CATEGORY
     if (category) {
       params.set("category", category);
     } else {
       params.delete("category");
     }
 
-    if (size) {
-      params.set("size", size);
+    // SIZES
+    if (selectedSizes.length > 0) {
+      params.set(
+        "size",
+        selectedSizes.join(",")
+      );
     } else {
       params.delete("size");
     }
 
-    if (color) {
-      params.set("color", color);
+    // COLORS
+    if (selectedColors.length > 0) {
+      params.set(
+        "color",
+        selectedColors.join(",")
+      );
     } else {
       params.delete("color");
     }
 
+    // SORT
     if (sort) {
       params.set("sort", sort);
     } else {
@@ -81,10 +134,12 @@ export default function ProductFilters({
     setOpen(false);
   }
 
+  // ---------------- CLEAR ----------------
+
   function clearFilters() {
     setCategory("");
-    setSize("");
-    setColor("");
+    setSelectedSizes([]);
+    setSelectedColors([]);
     setSort("");
 
     router.push("/products");
@@ -92,22 +147,25 @@ export default function ProductFilters({
     setOpen(false);
   }
 
-  const activeCount = [
-    category,
-    size,
-    color,
-    sort,
-  ].filter(Boolean).length;
+  const activeCount =
+    (category ? 1 : 0) +
+    selectedSizes.length +
+    selectedColors.length +
+    (sort ? 1 : 0);
 
   return (
     <>
       {/* FILTER BUTTON */}
+
       <button
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border border-gray-300 bg-white text-sm font-medium hover:border-black transition-colors"
       >
-        <Filter size={17} strokeWidth={1.8} />
+        <Filter
+          size={17}
+          strokeWidth={1.8}
+        />
 
         Filtrele
 
@@ -119,6 +177,7 @@ export default function ProductFilters({
       </button>
 
       {/* OVERLAY */}
+
       {open && (
         <div
           className="fixed inset-0 z-[100] bg-black/40"
@@ -127,6 +186,7 @@ export default function ProductFilters({
       )}
 
       {/* FILTER PANEL */}
+
       <div
         className={`fixed z-[110] top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-2xl transition-transform duration-300 ${
           open
@@ -137,7 +197,9 @@ export default function ProductFilters({
         <div className="flex flex-col h-full">
 
           {/* HEADER */}
+
           <div className="flex items-center justify-between px-6 py-5 border-b">
+
             <div>
               <h2 className="font-heading text-xl font-semibold">
                 Filtrele
@@ -158,18 +220,22 @@ export default function ProductFilters({
             >
               <X size={19} />
             </button>
+
           </div>
 
           {/* CONTENT */}
+
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
 
             {/* CATEGORY */}
+
             <section>
               <label className="block text-sm font-semibold mb-3">
                 Kategori
               </label>
 
               <div className="relative">
+
                 <select
                   value={category}
                   onChange={(e) =>
@@ -195,11 +261,14 @@ export default function ProductFilters({
                   size={17}
                   className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
                 />
+
               </div>
             </section>
 
             {/* SIZE */}
+
             <section>
+
               <label className="block text-sm font-semibold mb-3">
                 Beden
               </label>
@@ -210,20 +279,18 @@ export default function ProductFilters({
                 </p>
               ) : (
                 <div className="grid grid-cols-4 gap-2">
+
                   {sizes.map((item) => {
+
                     const selected =
-                      size === item;
+                      selectedSizes.includes(item);
 
                     return (
                       <button
                         key={item}
                         type="button"
                         onClick={() =>
-                          setSize(
-                            selected
-                              ? ""
-                              : item
-                          )
+                          toggleSize(item)
                         }
                         className={`h-11 rounded-xl border text-sm transition-colors ${
                           selected
@@ -235,12 +302,22 @@ export default function ProductFilters({
                       </button>
                     );
                   })}
+
                 </div>
               )}
+
+              {selectedSizes.length > 0 && (
+                <p className="text-xs text-gray-500 mt-3">
+                  {selectedSizes.length} beden seçildi
+                </p>
+              )}
+
             </section>
 
             {/* COLOR */}
+
             <section>
+
               <label className="block text-sm font-semibold mb-3">
                 Renk
               </label>
@@ -251,20 +328,18 @@ export default function ProductFilters({
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
+
                   {colors.map((item) => {
+
                     const selected =
-                      color === item;
+                      selectedColors.includes(item);
 
                     return (
                       <button
                         key={item}
                         type="button"
                         onClick={() =>
-                          setColor(
-                            selected
-                              ? ""
-                              : item
-                          )
+                          toggleColor(item)
                         }
                         className={`px-4 py-2.5 rounded-full border text-sm transition-colors ${
                           selected
@@ -276,12 +351,22 @@ export default function ProductFilters({
                       </button>
                     );
                   })}
+
                 </div>
               )}
+
+              {selectedColors.length > 0 && (
+                <p className="text-xs text-gray-500 mt-3">
+                  {selectedColors.length} renk seçildi
+                </p>
+              )}
+
             </section>
 
             {/* SORT */}
+
             <section>
+
               <label className="block text-sm font-semibold mb-3">
                 Sıralama
               </label>
@@ -289,6 +374,7 @@ export default function ProductFilters({
               <div className="space-y-2">
 
                 {/* DEFAULT */}
+
                 <button
                   type="button"
                   onClick={() => setSort("")}
@@ -306,6 +392,7 @@ export default function ProductFilters({
                 </button>
 
                 {/* LOW TO HIGH */}
+
                 <button
                   type="button"
                   onClick={() =>
@@ -327,6 +414,7 @@ export default function ProductFilters({
                 </button>
 
                 {/* HIGH TO LOW */}
+
                 <button
                   type="button"
                   onClick={() =>
@@ -348,10 +436,13 @@ export default function ProductFilters({
                 </button>
 
               </div>
+
             </section>
+
           </div>
 
           {/* FOOTER */}
+
           <div className="border-t bg-white px-6 py-5 space-y-3">
 
             <button
@@ -371,6 +462,7 @@ export default function ProductFilters({
             </button>
 
           </div>
+
         </div>
       </div>
     </>
