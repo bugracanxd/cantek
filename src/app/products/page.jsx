@@ -8,6 +8,59 @@ export const metadata = {
   title: "Tüm Ürünler",
 };
 
+/**
+ * sizes / colors alanlarını güvenli şekilde diziye çevirir.
+ *
+ * Desteklenen formatlar:
+ *
+ * ["39","40","41","42"]
+ *
+ * veya
+ *
+ * 39,40,41,42
+ *
+ * veya
+ *
+ * 39, 40, 41, 42
+ */
+function parseProductList(value) {
+  if (!value) return [];
+
+  const text = String(value).trim();
+
+  if (!text) return [];
+
+  // Önce JSON array deniyoruz
+  try {
+    const parsed = JSON.parse(text);
+
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => String(item).trim())
+        .filter(Boolean);
+    }
+  } catch {
+    // JSON değilse aşağıdaki normal string yöntemi kullanılacak
+  }
+
+  // Eski virgüllü format
+  return text
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .split(",")
+    .map((item) =>
+      item
+        .trim()
+        .replace(/^["']|["']$/g, "")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+/**
+ * Prisma tarafında hem JSON array hem CSV formatını
+ * destekleyecek filtre oluşturur.
+ */
 function buildListFilter(value) {
   if (!value) return null;
 
@@ -17,18 +70,44 @@ function buildListFilter(value) {
 
   return {
     OR: [
-      { equals: normalized },
-      { startsWith: `${normalized},` },
-      { endsWith: `,${normalized}` },
-      { contains: `,${normalized},` },
-      { contains: `, ${normalized},` },
-      { startsWith: `${normalized}, ` },
-      { endsWith: `, ${normalized}` },
+      // Tek değer
+      {
+        equals: normalized,
+      },
+
+      // JSON array:
+      // ["40","41","42"]
+      {
+        contains: `"${normalized}"`,
+      },
+
+      // CSV:
+      // 40,41,42
+      {
+        startsWith: `${normalized},`,
+      },
+      {
+        endsWith: `,${normalized}`,
+      },
+      {
+        contains: `,${normalized},`,
+      },
+      {
+        contains: `, ${normalized},`,
+      },
+      {
+        startsWith: `${normalized}, `,
+      },
+      {
+        endsWith: `, ${normalized}`,
+      },
     ],
   };
 }
 
-export default async function AllProductsPage({ searchParams }) {
+export default async function AllProductsPage({
+  searchParams,
+}) {
   const params = searchParams || {};
 
   const categorySlug = params.category || "";
@@ -66,12 +145,7 @@ export default async function AllProductsPage({ searchParams }) {
   const colorFilter = buildListFilter(color);
 
   if (colorFilter) {
-    where.colors = {
-      ...colorFilter,
-      OR: colorFilter.OR.map((condition) => ({
-        ...condition,
-      })),
-    };
+    where.colors = colorFilter;
   }
 
   // ---------------- SORT ----------------
@@ -92,9 +166,14 @@ export default async function AllProductsPage({ searchParams }) {
     };
   }
 
-  const [products, categories, allProducts] = await Promise.all([
+  const [
+    products,
+    categories,
+    allProducts,
+  ] = await Promise.all([
     prisma.product.findMany({
       where,
+
       include: {
         images: {
           orderBy: {
@@ -102,29 +181,34 @@ export default async function AllProductsPage({ searchParams }) {
           },
           take: 1,
         },
+
         categories: {
           include: {
             category: true,
           },
         },
       },
+
       orderBy,
     }),
 
+    // Aktif kategoriler
     prisma.category.findMany({
       where: {
         isActive: true,
       },
+
       orderBy: {
         order: "asc",
       },
     }),
 
-    // Filtre seçeneklerini otomatik oluşturmak için
+    // Filtre seçeneklerini oluşturmak için
     prisma.product.findMany({
       where: {
         isActive: true,
       },
+
       select: {
         sizes: true,
         colors: true,
@@ -136,37 +220,42 @@ export default async function AllProductsPage({ searchParams }) {
 
   const sizes = [
     ...new Set(
-      allProducts
-        .flatMap((product) =>
-          product.sizes
-            ? product.sizes
-                .split(",")
-                .map((size) => size.trim())
-                .filter(Boolean)
-            : []
-        )
+      allProducts.flatMap((product) =>
+        parseProductList(product.sizes)
+      )
     ),
-  ].sort((a, b) => Number(a) - Number(b));
+  ].sort((a, b) => {
+    const numberA = Number(a);
+    const numberB = Number(b);
+
+    if (
+      !Number.isNaN(numberA) &&
+      !Number.isNaN(numberB)
+    ) {
+      return numberA - numberB;
+    }
+
+    return a.localeCompare(b, "tr");
+  });
 
   // ---------------- AVAILABLE COLORS ----------------
 
   const colors = [
     ...new Set(
-      allProducts
-        .flatMap((product) =>
-          product.colors
-            ? product.colors
-                .split(",")
-                .map((color) => color.trim())
-                .filter(Boolean)
-            : []
-        )
+      allProducts.flatMap((product) =>
+        parseProductList(product.colors)
+      )
     ),
-  ].sort((a, b) => a.localeCompare(b, "tr"));
+  ].sort((a, b) =>
+    a.localeCompare(b, "tr")
+  );
 
   return (
     <div className="site-container py-10">
+
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 mb-8">
+
         <div>
           <h1 className="font-heading text-3xl font-semibold">
             Tüm Ürünler
@@ -188,11 +277,17 @@ export default async function AllProductsPage({ searchParams }) {
             sort,
           }}
         />
+
       </div>
 
-      {/* Aktif filtreler */}
-      {(categorySlug || size || color || sort) && (
+      {/* ACTIVE FILTERS */}
+
+      {(categorySlug ||
+        size ||
+        color ||
+        sort) && (
         <div className="flex flex-wrap items-center gap-2 mb-8">
+
           <span className="text-sm text-gray-500 mr-1">
             Aktif filtreler:
           </span>
@@ -200,8 +295,10 @@ export default async function AllProductsPage({ searchParams }) {
           {categorySlug && (
             <span className="px-3 py-1.5 rounded-full bg-black text-white text-xs">
               Kategori:{" "}
-              {categories.find((c) => c.slug === categorySlug)?.name ||
-                categorySlug}
+              {categories.find(
+                (category) =>
+                  category.slug === categorySlug
+              )?.name || categorySlug}
             </span>
           )}
 
@@ -228,13 +325,18 @@ export default async function AllProductsPage({ searchParams }) {
               Fiyat: Yüksek → Düşük
             </span>
           )}
+
         </div>
       )}
 
+      {/* PRODUCTS */}
+
       {products.length === 0 ? (
         <div className="py-20 text-center">
+
           <p className="text-gray-500 mb-4">
-            Seçtiğiniz filtrelere uygun ürün bulunamadı.
+            Seçtiğiniz filtrelere uygun ürün
+            bulunamadı.
           </p>
 
           <a
@@ -243,9 +345,11 @@ export default async function AllProductsPage({ searchParams }) {
           >
             Filtreleri Temizle
           </a>
+
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+
           {products.map((product, index) => (
             <ProductCard
               key={product.id}
@@ -253,8 +357,10 @@ export default async function AllProductsPage({ searchParams }) {
               index={index}
             />
           ))}
+
         </div>
       )}
+
     </div>
   );
 }
