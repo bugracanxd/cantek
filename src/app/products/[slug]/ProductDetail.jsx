@@ -8,8 +8,11 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+
+const FUR_PRICE = 500;
 
 export default function ProductDetail({ product }) {
   const sizes =
@@ -36,13 +39,25 @@ export default function ProductDetail({ product }) {
   const [activeImage, setActiveImage] = useState(0);
   const [size, setSize] = useState(sizes[0] || "");
   const [color, setColor] = useState(colors[0] || "");
+  const [furSelected, setFurSelected] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
 
   const { addItem } = useCart();
 
+  const basePrice =
+    product.discountedPrice &&
+    product.discountedPrice < product.price
+      ? product.discountedPrice
+      : product.price;
+
   const hasDiscount =
-    product.discountedPrice && product.discountedPrice < product.price;
+    product.discountedPrice &&
+    product.discountedPrice < product.price;
+
+  const currentPrice = basePrice + (furSelected ? FUR_PRICE : 0);
+
+  const originalPrice = product.price + (furSelected ? FUR_PRICE : 0);
 
   function prevImage() {
     setActiveImage((prev) => (prev === 0 ? images.length - 1 : prev - 1));
@@ -74,11 +89,19 @@ export default function ProductDetail({ product }) {
       return;
     }
 
-    addItem(product, size, color, 1);
-    toast.success("Sepete eklendi");
+    addItem(product, size, color, 1, furSelected);
+
+    toast.success(
+      furSelected
+        ? "Kürklü ürün sepete eklendi"
+        : "Sepete eklendi"
+    );
 
     setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1500);
+
+    setTimeout(() => {
+      setJustAdded(false);
+    }, 1500);
   }
 
   return (
@@ -267,20 +290,20 @@ export default function ProductDetail({ product }) {
           )}
 
           {/* PRICE */}
-          <div className="mb-7 flex items-center gap-3">
+          <div className="mb-7 flex flex-wrap items-center gap-3">
             {hasDiscount ? (
               <>
                 <span className="text-3xl font-bold md:text-4xl">
-                  {product.discountedPrice.toFixed(2)} ₺
+                  {currentPrice.toFixed(2)} ₺
                 </span>
 
                 <span className="text-base text-gray-400 line-through">
-                  {product.price.toFixed(2)} ₺
+                  {originalPrice.toFixed(2)} ₺
                 </span>
               </>
             ) : (
               <span className="text-2xl font-semibold">
-                {product.price.toFixed(2)} ₺
+                {currentPrice.toFixed(2)} ₺
               </span>
             )}
           </div>
@@ -348,6 +371,83 @@ export default function ProductDetail({ product }) {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* =========================
+              FUR OPTION
+          ========================== */}
+          {product.hasFurOption && (
+            <div className="mb-7">
+              <div className="mb-3 text-sm font-medium">
+                Ürün Seçeneği
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFurSelected((prev) => !prev)}
+                className={`
+                  flex
+                  w-full
+                  items-center
+                  gap-4
+                  rounded-[20px]
+                  border
+                  p-4
+                  text-left
+                  transition-all
+                  ${
+                    furSelected
+                      ? "border-black bg-[#FAFAFA] shadow-sm"
+                      : "border-[#E7E0D4] bg-white hover:border-black"
+                  }
+                `}
+              >
+                <span
+                  className={`
+                    flex
+                    h-6
+                    w-6
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-md
+                    border
+                    transition-all
+                    ${
+                      furSelected
+                        ? "border-black bg-black text-white"
+                        : "border-gray-300 bg-white"
+                    }
+                  `}
+                >
+                  {furSelected && <Check size={15} strokeWidth={2.5} />}
+                </span>
+
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#111111]">
+                    Kürklü
+                    <span className="font-medium text-neutral-500">
+                      +{FUR_PRICE.toFixed(2)} ₺
+                    </span>
+                  </span>
+
+                  <span className="mt-1 text-xs leading-relaxed text-neutral-500">
+                    Sizin için özel olarak kürklü olarak hazırlanır.
+                  </span>
+                </span>
+              </button>
+
+              {furSelected && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="mt-3 flex items-center gap-2 px-1 text-xs text-neutral-500"
+                >
+                  <ShieldCheck size={15} />
+                  Kürk seçeneği ürün fiyatına 500,00 ₺ eklenmiştir.
+                </motion.div>
+              )}
             </div>
           )}
 
