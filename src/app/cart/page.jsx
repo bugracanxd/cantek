@@ -9,8 +9,11 @@ import {
   Trash2,
   ShoppingBag,
   ArrowRight,
+  Check,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+
+const FUR_PRICE = 500;
 
 export default function CartPage() {
   const {
@@ -36,7 +39,11 @@ export default function CartPage() {
     setCode(couponCode);
   }, [couponCode]);
 
-  if (hydrated && items.length === 0) {
+  if (!hydrated) {
+    return null;
+  }
+
+  if (items.length === 0) {
     return (
       <div className="site-container py-24 text-center">
         <ShoppingBag
@@ -44,7 +51,8 @@ export default function CartPage() {
           className="mx-auto mb-4 text-gray-300"
           strokeWidth={1.25}
         />
-        <h1 className="font-heading text-2xl font-semibold mb-4">
+
+        <h1 className="font-heading mb-4 text-2xl font-semibold">
           Sepetiniz boş
         </h1>
 
@@ -52,134 +60,234 @@ export default function CartPage() {
           href="/products"
           className="btn-primary inline-flex items-center gap-2 px-6 py-3"
         >
-          Alışverişe Başla <ArrowRight size={16} />
+          Alışverişe Başla
+          <ArrowRight size={16} />
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="site-container py-10 grid md:grid-cols-3 gap-10">
-      <div className="md:col-span-2 space-y-4">
-        <h1 className="font-heading text-2xl font-semibold mb-4">
+    <div className="site-container grid gap-10 py-10 md:grid-cols-3">
+      {/* =========================
+          CART ITEMS
+      ========================== */}
+      <div className="space-y-4 md:col-span-2">
+        <h1 className="font-heading mb-4 text-2xl font-semibold">
           Sepetim
         </h1>
 
         <AnimatePresence>
-          {items.map((item) => (
-            <motion.div
-              key={`${item.productId}-${item.size}-${item.color}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.25 }}
-              className="flex gap-4 border-b pb-4"
-            >
-              <img
-                src={item.image || "/uploads/product-placeholder.svg"}
-                alt={item.name}
-                className="w-24 h-24 object-cover rounded-site"
-              />
+          {items.map((item) => {
+            const furSelected = Boolean(item.furSelected);
 
-              <div className="flex-1">
-                <div className="font-medium">{item.name}</div>
+            return (
+              <motion.div
+                key={`${item.productId}-${item.size}-${item.color}-${furSelected ? "fur" : "standard"}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.25 }}
+                className="
+                  flex
+                  gap-4
+                  border-b
+                  pb-4
+                "
+              >
+                {/* PRODUCT IMAGE */}
+                <img
+                  src={
+                    item.image ||
+                    "/uploads/product-placeholder.svg"
+                  }
+                  alt={item.name}
+                  className="
+                    h-24
+                    w-24
+                    shrink-0
+                    rounded-site
+                    object-cover
+                  "
+                />
 
-                <div className="text-sm text-gray-500">
-                  {item.size && `Beden: ${item.size}`}{" "}
-                  {item.color && `· Renk: ${item.color}`}
-                </div>
-
-                <div className="flex items-center gap-3 mt-2">
-                  <div className="flex items-center border rounded-site overflow-hidden">
-                    <button
-                      className="px-2.5 py-1.5 hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                        updateQuantity(
-                          item.productId,
-                          item.size,
-                          item.color,
-                          item.quantity - 1
-                        )
-                      }
-                    >
-                      <Minus size={13} />
-                    </button>
-
-                    <span className="px-3 text-sm">
-                      {item.quantity}
-                    </span>
-
-                    <button
-                      className="px-2.5 py-1.5 hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                        updateQuantity(
-                          item.productId,
-                          item.size,
-                          item.color,
-                          item.quantity + 1
-                        )
-                      }
-                    >
-                      <Plus size={13} />
-                    </button>
+                {/* PRODUCT INFO */}
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">
+                    {item.name}
                   </div>
 
-                  <button
-                    className="text-sm text-red-600 flex items-center gap-1 hover:opacity-70 transition-opacity"
-                    onClick={() =>
-                      removeItem(
-                        item.productId,
-                        item.size,
-                        item.color
-                      )
-                    }
-                  >
-                    <Trash2 size={14} /> Kaldır
-                  </button>
-                </div>
-              </div>
+                  {/* SIZE / COLOR */}
+                  <div className="mt-1 text-sm text-gray-500">
+                    {item.size && `Beden: ${item.size}`}{" "}
+                    {item.color && `· Renk: ${item.color}`}
+                  </div>
 
-              <div className="font-semibold">
-                {(item.price * item.quantity).toFixed(2)} ₺
-              </div>
-            </motion.div>
-          ))}
+                  {/* FUR OPTION */}
+                  {furSelected && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#F7F5F1] px-3 py-1 text-xs font-medium text-[#222]">
+                      <Check size={13} strokeWidth={2.5} />
+                      Kürklü
+                      <span className="text-gray-500">
+                        +{FUR_PRICE.toFixed(2)} ₺
+                      </span>
+                    </div>
+                  )}
+
+                  {/* QUANTITY + REMOVE */}
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center overflow-hidden rounded-site border">
+                      <button
+                        type="button"
+                        aria-label="Adet azalt"
+                        className="
+                          px-2.5
+                          py-1.5
+                          transition-colors
+                          hover:bg-gray-50
+                        "
+                        onClick={() =>
+                          updateQuantity(
+                            item.productId,
+                            item.size,
+                            item.color,
+                            item.quantity - 1,
+                            furSelected
+                          )
+                        }
+                      >
+                        <Minus size={13} />
+                      </button>
+
+                      <span className="px-3 text-sm">
+                        {item.quantity}
+                      </span>
+
+                      <button
+                        type="button"
+                        aria-label="Adet artır"
+                        className="
+                          px-2.5
+                          py-1.5
+                          transition-colors
+                          hover:bg-gray-50
+                        "
+                        onClick={() =>
+                          updateQuantity(
+                            item.productId,
+                            item.size,
+                            item.color,
+                            item.quantity + 1,
+                            furSelected
+                          )
+                        }
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="
+                        flex
+                        items-center
+                        gap-1
+                        text-sm
+                        text-red-600
+                        transition-opacity
+                        hover:opacity-70
+                      "
+                      onClick={() =>
+                        removeItem(
+                          item.productId,
+                          item.size,
+                          item.color,
+                          furSelected
+                        )
+                      }
+                    >
+                      <Trash2 size={14} />
+                      Kaldır
+                    </button>
+                  </div>
+                </div>
+
+                {/* ITEM PRICE */}
+                <div className="shrink-0 text-right font-semibold">
+                  {(Number(item.price || 0) * item.quantity).toFixed(2)} ₺
+
+                  {furSelected && (
+                    <div className="mt-1 text-xs font-normal text-gray-500">
+                      Kürklü seçenek dahil
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
 
-      <div className="border rounded-site p-6 h-fit">
-        <h2 className="font-semibold mb-4">Sipariş Özeti</h2>
+      {/* =========================
+          ORDER SUMMARY
+      ========================== */}
+      <div className="h-fit rounded-site border p-6">
+        <h2 className="mb-4 font-semibold">
+          Sipariş Özeti
+        </h2>
 
-        <div className="flex gap-2 mb-3">
+        {/* COUPON */}
+        <div className="mb-3 flex gap-2">
           <input
             type="text"
             placeholder="Kupon kodu"
             value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            className="flex-1 border px-3 py-2 rounded-site text-sm"
+            onChange={(e) =>
+              setCode(e.target.value.toUpperCase())
+            }
+            className="
+              flex-1
+              rounded-site
+              border
+              px-3
+              py-2
+              text-sm
+              outline-none
+              transition
+              focus:border-black
+            "
           />
 
           <button
+            type="button"
             onClick={() => applyCoupon(code)}
             disabled={couponLoading}
-            className="btn-primary px-4 text-sm disabled:opacity-50"
+            className="
+              btn-primary
+              px-4
+              text-sm
+              disabled:opacity-50
+            "
           >
             {couponLoading ? "..." : "Uygula"}
           </button>
         </div>
 
+        {/* COUPON ERROR */}
         {couponError && (
-          <p className="text-red-600 text-xs mb-3">
+          <p className="mb-3 text-xs text-red-600">
             {couponError}
           </p>
         )}
 
+        {/* ACTIVE COUPON */}
         {couponCode && (
-          <div className="flex justify-between text-green-600 text-sm mb-3">
+          <div className="mb-3 flex justify-between text-sm text-green-600">
             <span>✓ {couponCode}</span>
 
             <button
-              onClick={() => removeCoupon()}
+              type="button"
+              onClick={removeCoupon}
               className="underline"
             >
               Kaldır
@@ -187,33 +295,61 @@ export default function CartPage() {
           </div>
         )}
 
-        <div className="flex justify-between mb-2">
+        {/* SUBTOTAL */}
+        <div className="mb-2 flex justify-between">
           <span>Ara Toplam</span>
-          <span>{subtotal.toFixed(2)} ₺</span>
+
+          <span>
+            {subtotal.toFixed(2)} ₺
+          </span>
         </div>
 
+        {/* DISCOUNT */}
         {discount > 0 && (
-          <div className="flex justify-between mb-2 text-green-600">
+          <div className="mb-2 flex justify-between text-green-600">
             <span>İndirim</span>
-            <span>-{discount.toFixed(2)} ₺</span>
+
+            <span>
+              -{discount.toFixed(2)} ₺
+            </span>
           </div>
         )}
 
-        <div className="flex justify-between mb-2">
+        {/* SHIPPING */}
+        <div className="mb-2 flex justify-between">
           <span>Kargo</span>
-          <span>{shippingCost.toFixed(2)} ₺</span>
+
+          <span>
+            {shippingCost.toFixed(2)} ₺
+          </span>
         </div>
 
-        <div className="border-t mt-3 pt-3 flex justify-between font-semibold text-lg">
+        {/* TOTAL */}
+        <div className="mt-3 flex justify-between border-t pt-3 text-lg font-semibold">
           <span>Toplam</span>
-          <span>{(couponCode ? total : subtotal).toFixed(2)} ₺</span>
+
+          <span>
+            {(couponCode ? total : subtotal).toFixed(2)} ₺
+          </span>
         </div>
 
+        {/* CHECKOUT */}
         <Link
           href="/checkout"
-          className="btn-primary flex items-center justify-center gap-2 w-full py-3 font-medium mt-5"
+          className="
+            btn-primary
+            mt-5
+            flex
+            w-full
+            items-center
+            justify-center
+            gap-2
+            py-3
+            font-medium
+          "
         >
-          Ödemeye Geç <ArrowRight size={16} />
+          Ödemeye Geç
+          <ArrowRight size={16} />
         </Link>
       </div>
     </div>
