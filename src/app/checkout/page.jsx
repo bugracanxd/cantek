@@ -1,13 +1,10 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useCart } from "@/context/CartContext";
-
 const FUR_PRICE = 500;
-
 export default function CheckoutPage() {
   const {
     items,
@@ -18,68 +15,62 @@ export default function CheckoutPage() {
     couponCode,
     clearCart,
   } = useCart();
-
   const router = useRouter();
   const { data: session, status } = useSession();
-
   const [form, setForm] = useState({
     customerName: "",
     customerEmail: "",
     customerPhone: "",
     shippingAddress: "",
-    couponCode: couponCode || "",
+    couponCode: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [iframeToken, setIframeToken] = useState(null);
-
   // --------------------------------------------------
   // LOGIN CHECK
   // --------------------------------------------------
-
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login?redirect=/checkout");
     }
   }, [status, router]);
-
   // --------------------------------------------------
   // SESSION INFORMATION
   // --------------------------------------------------
-
   useEffect(() => {
+    if (!session?.user) return;
     setForm((prev) => ({
       ...prev,
       customerName:
-        session?.user?.name || prev.customerName,
+        typeof session.user.name === "string"
+          ? session.user.name
+          : prev.customerName,
       customerEmail:
-        session?.user?.email || prev.customerEmail,
+        typeof session.user.email === "string"
+          ? session.user.email
+          : prev.customerEmail,
     }));
   }, [session]);
-
   // --------------------------------------------------
   // COUPON
   // --------------------------------------------------
-
   useEffect(() => {
     setForm((prev) => ({
       ...prev,
-      couponCode,
+      couponCode:
+        typeof couponCode === "string"
+          ? couponCode
+          : "",
     }));
   }, [couponCode]);
-
   // --------------------------------------------------
   // PAYTR IFRAME
   // --------------------------------------------------
-
   useEffect(() => {
     if (!iframeToken) return;
-
     const script = document.createElement("script");
-
     script.src =
       "https://www.paytr.com/js/iframeResizer.min.js";
-
     script.onload = () => {
       if (window.iFrameResize) {
         window.iFrameResize(
@@ -92,73 +83,134 @@ export default function CheckoutPage() {
         );
       }
     };
-
     document.body.appendChild(script);
-
     return () => {
       if (document.body.contains(script)) {
         document.body.removeChild(script);
       }
     };
   }, [iframeToken]);
-
   // --------------------------------------------------
   // SUBMIT ORDER
   // --------------------------------------------------
-
   async function handleSubmit(e) {
     e.preventDefault();
-
     if (items.length === 0) {
       toast.error("Sepetiniz boş");
       return;
     }
-
+    // Form validation
+    const customerName = form.customerName.trim();
+    const customerEmail = form.customerEmail.trim();
+    const customerPhone = form.customerPhone.trim();
+    const shippingAddress = form.shippingAddress.trim();
+    const cleanCouponCode =
+      typeof form.couponCode === "string"
+        ? form.couponCode.trim()
+        : "";
+    if (!customerName) {
+      toast.error("Ad soyad bilgisi gerekli.");
+      return;
+    }
+    if (!customerEmail) {
+      toast.error("E-posta bilgisi gerekli.");
+      return;
+    }
+    if (!customerPhone) {
+      toast.error("Telefon bilgisi gerekli.");
+      return;
+    }
+    if (!shippingAddress) {
+      toast.error("Adres bilgisi gerekli.");
+      return;
+    }
+    // --------------------------------------------------
+    // PRODUCT VALIDATION
+    // --------------------------------------------------
+    const invalidItem = items.find(
+      (item) =>
+        !item?.productId ||
+        !item?.quantity ||
+        Number(item.quantity) <= 0
+    );
+    if (invalidItem) {
+      toast.error(
+        "Sepetinizde geçersiz bir ürün bulunuyor. Lütfen sepeti yenileyin."
+      );
+      return;
+    }
     setLoading(true);
-
     try {
-      /*
-       * DİKKAT:
-       * Burada fiyat göndermiyoruz.
-       *
-       * Sadece ürünün ID'si ve seçenekleri gönderiliyor.
-       * Gerçek fiyat / +500 TL kürk ücreti server tarafında
-       * /api/orders içerisinde yeniden hesaplanmalı.
-       */
+      // --------------------------------------------------
+      // ORDER ITEMS
+      // --------------------------------------------------
+      const orderItems = items.map((item) => {
+        const itemData = {
+          productId: String(item.productId),
+          quantity: Number(item.quantity),
+          furSelected: Boolean(item.furSelected),
+        };
+        // Sadece gerçekten değer varsa gönderiyoruz.
+        if (
+          item.size !== null &&
+          item.size !== undefined &&
+          String(item.size).trim() !== ""
+        ) {
+          itemData.size = String(item.size);
+        }
+        if (
+          item.color !== null &&
+          item.color !== undefined &&
+          String(item.color).trim() !== ""
+        ) {
+          itemData.color = String(item.color);
+        }
+        return itemData;
+      });
+      // --------------------------------------------------
+      // CREATE ORDER
+      // --------------------------------------------------
+      const orderBody = {
+        customerName,
+        customerEmail,
+        customerPhone,
+        shippingAddress,
+        items: orderItems,
+      };
+      // Kupon varsa gönder.
+      // Yoksa null göndermiyoruz.
+      if (cleanCouponCode) {
+        orderBody.couponCode = cleanCouponCode;
+      }
+      console.log("ORDER REQUEST:", orderBody);
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          customerName: form.customerName,
-          customerEmail: form.customerEmail,
-          customerPhone: form.customerPhone,
-          shippingAddress: form.shippingAddress,
-          couponCode: form.couponCode || null,
-
-          items: items.map((item) => ({
-            productId: item.productId,
-            size: item.size,
-            color: item.color,
-            quantity: item.quantity,
-            furSelected: Boolean(item.furSelected),
-          })),
-        }),
+        body: JSON.stringify(orderBody),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
+        console.error("ORDER API ERROR:", data);
         throw new Error(
-          data.error || "Sipariş oluşturulamadı"
+          data.error ||
+            data.message ||
+            "Sipariş oluşturulamadı"
         );
       }
-
+      if (!data?.order?.id) {
+        console.error(
+          "ORDER RESPONSE:",
+          data
+        );
+        throw new Error(
+          "Sipariş oluşturuldu ancak sipariş bilgisi alınamadı."
+        );
+      }
       // --------------------------------------------------
       // PAYTR PAYMENT
       // --------------------------------------------------
-
       const payRes = await fetch(
         "/api/payment/paytr/init",
         {
@@ -167,41 +219,52 @@ export default function CheckoutPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            orderId: data.order.id,
+            orderId: String(data.order.id),
           }),
         }
       );
-
       const payData = await payRes.json();
-
       if (!payRes.ok) {
+        console.error(
+          "PAYTR INIT ERROR:",
+          payData
+        );
         throw new Error(
-          payData.error || "Ödeme başlatılamadı"
+          payData.error ||
+            payData.message ||
+            "Ödeme başlatılamadı"
         );
       }
-
+      if (!payData?.token) {
+        console.error(
+          "PAYTR RESPONSE:",
+          payData
+        );
+        throw new Error(
+          "PayTR ödeme tokeni alınamadı."
+        );
+      }
       setIframeToken(payData.token);
-
-      /*
-       * Sipariş server'da oluşturulduktan sonra
-       * local sepet temizleniyor.
-       */
+      // --------------------------------------------------
+      // CLEAR CART
+      // --------------------------------------------------
       clearCart();
     } catch (err) {
-      console.error("Checkout error:", err);
-
+      console.error(
+        "Checkout error:",
+        err
+      );
       toast.error(
-        err.message || "Bir hata oluştu."
+        err?.message ||
+          "Bir hata oluştu."
       );
     } finally {
       setLoading(false);
     }
   }
-
   // --------------------------------------------------
   // SESSION LOADING
   // --------------------------------------------------
-
   if (status === "loading") {
     return (
       <div className="site-container py-20 text-center">
@@ -211,18 +274,15 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
   // --------------------------------------------------
   // UNAUTHENTICATED
   // --------------------------------------------------
-
   if (status === "unauthenticated") {
     return (
       <div className="site-container py-20 text-center">
         <h1 className="mb-3 text-2xl font-bold">
           Giriş Yapmanız Gerekiyor
         </h1>
-
         <p className="text-gray-600">
           Ödeme yapabilmek için hesabınıza giriş
           yapmalısınız.
@@ -230,11 +290,9 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
   // --------------------------------------------------
   // PAYTR IFRAME
   // --------------------------------------------------
-
   if (iframeToken) {
     return (
       <div className="fixed inset-0 z-[9999] h-[100dvh] overflow-auto bg-white">
@@ -243,16 +301,16 @@ export default function CheckoutPage() {
             <h1 className="text-xl font-bold">
               Güvenli Ödeme
             </h1>
-
             <button
               type="button"
-              onClick={() => setIframeToken(null)}
+              onClick={() =>
+                setIframeToken(null)
+              }
               className="rounded-lg border px-3 py-2 text-sm"
             >
               Kapat
             </button>
           </div>
-
           <iframe
             id="paytriframe"
             src={`https://www.paytr.com/odeme/guvenli/${iframeToken}`}
@@ -270,17 +328,12 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
   // --------------------------------------------------
   // CHECKOUT
   // --------------------------------------------------
-
   return (
     <div className="site-container grid gap-10 py-10 md:grid-cols-3">
-      {/* =========================
-          DELIVERY FORM
-      ========================== */}
-
+      {/* DELIVERY FORM */}
       <form
         onSubmit={handleSubmit}
         className="space-y-4 md:col-span-2"
@@ -288,7 +341,6 @@ export default function CheckoutPage() {
         <h1 className="mb-2 text-2xl font-bold">
           Teslimat Bilgileri
         </h1>
-
         <input
           type="text"
           placeholder="Ad Soyad"
@@ -302,7 +354,6 @@ export default function CheckoutPage() {
             })
           }
         />
-
         <input
           type="email"
           placeholder="E-posta"
@@ -316,7 +367,6 @@ export default function CheckoutPage() {
             })
           }
         />
-
         <input
           type="tel"
           placeholder="Telefon"
@@ -330,7 +380,6 @@ export default function CheckoutPage() {
             })
           }
         />
-
         <textarea
           placeholder="Adres"
           required
@@ -344,7 +393,6 @@ export default function CheckoutPage() {
             })
           }
         />
-
         <input
           type="text"
           placeholder="Kupon kodu"
@@ -352,7 +400,6 @@ export default function CheckoutPage() {
           value={form.couponCode}
           readOnly
         />
-
         <button
           type="submit"
           disabled={loading}
@@ -369,24 +416,27 @@ export default function CheckoutPage() {
             : "Ödemeye Geç"}
         </button>
       </form>
-
-      {/* =========================
-          ORDER SUMMARY
-      ========================== */}
-
+      {/* ORDER SUMMARY */}
       <div className="h-fit rounded-site border p-6">
         <h2 className="mb-4 font-semibold">
           Sipariş Özeti
         </h2>
-
         {items.map((item, index) => {
           const furSelected = Boolean(
             item.furSelected
           );
-
+          const basePrice = Number(
+            item.price || 0
+          );
+          const unitPrice =
+            basePrice +
+            (furSelected ? FUR_PRICE : 0);
+          const itemTotal =
+            unitPrice *
+            Number(item.quantity || 0);
           return (
             <div
-              key={`${item.productId}-${item.size}-${item.color}-${furSelected ? "fur" : "standard"}-${index}`}
+              key={`${item.productId}-${item.size || "no-size"}-${item.color || "no-color"}-${furSelected ? "fur" : "standard"}-${index}`}
               className="mb-4 border-b pb-3"
             >
               <div className="flex justify-between gap-4 text-sm">
@@ -394,47 +444,42 @@ export default function CheckoutPage() {
                   <div className="font-medium">
                     {item.name} x{item.quantity}
                   </div>
-
-                  {(item.size || item.color) && (
+                  {(item.size ||
+                    item.color) && (
                     <div className="mt-1 text-xs text-gray-500">
                       {item.size &&
                         `Beden: ${item.size}`}
-                      {item.size && item.color && " · "}
+                      {item.size &&
+                        item.color &&
+                        " · "}
                       {item.color &&
                         `Renk: ${item.color}`}
                     </div>
                   )}
-
                   {furSelected && (
                     <div className="mt-1 text-xs font-medium text-gray-600">
-                      Kürklü (+{FUR_PRICE.toFixed(2)} ₺)
+                      Kürklü (+
+                      {FUR_PRICE.toFixed(2)}
+                      ₺)
                     </div>
                   )}
                 </div>
-
                 <span className="shrink-0 font-medium">
-                  {(
-                    Number(item.price || 0) *
-                    item.quantity
-                  ).toFixed(2)}{" "}
-                  ₺
+                  {itemTotal.toFixed(2)} ₺
                 </span>
               </div>
             </div>
           );
         })}
-
         {/* SUBTOTAL */}
         <div className="mb-2 flex justify-between">
           <span>Ara Toplam</span>
-
           <span>
-            {subtotal.toFixed(2)} ₺
+            {Number(subtotal || 0).toFixed(2)} ₺
           </span>
         </div>
-
         {/* DISCOUNT */}
-        {discount > 0 && (
+        {Number(discount || 0) > 0 && (
           <div className="mb-2 flex justify-between text-green-600">
             <span>
               İndirim
@@ -442,30 +487,27 @@ export default function CheckoutPage() {
                 ? ` (${couponCode})`
                 : ""}
             </span>
-
             <span>
-              -{discount.toFixed(2)} ₺
+              -
+              {Number(discount || 0).toFixed(2)} ₺
             </span>
           </div>
         )}
-
         {/* SHIPPING */}
         <div className="mb-2 flex justify-between">
           <span>Kargo</span>
-
           <span>
-            {shippingCost.toFixed(2)} ₺
+            {Number(shippingCost || 0).toFixed(2)} ₺
           </span>
         </div>
-
         {/* TOTAL */}
         <div className="flex justify-between border-t pt-3 text-lg font-semibold">
           <span>Toplam</span>
-
           <span>
-            {(couponCode
-              ? total
-              : subtotal
+            {Number(
+              couponCode
+                ? total
+                : subtotal
             ).toFixed(2)}{" "}
             ₺
           </span>
