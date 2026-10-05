@@ -1,9 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
-export default function Hero({ data }) {
+export default function Hero({ data = {} }) {
+  const fallbackImage = "/hero-shoe.jpg";
+
+  const [imageSrc, setImageSrc] = useState(
+    data?.image?.trim() || fallbackImage
+  );
+
+  function handleImageError() {
+    if (imageSrc !== fallbackImage) {
+      setImageSrc(fallbackImage);
+    }
+  }
+
   return (
     <section className="relative overflow-hidden bg-[#F8F7F4] text-[#111111]">
       {/* Arka plan ışık efektleri */}
@@ -14,7 +27,7 @@ export default function Hero({ data }) {
 
       <div className="site-container relative z-10 py-10 md:py-20">
         <div className="grid items-center gap-12 md:grid-cols-2">
-          {/* MOBİLDE GÖRSEL ÖNCE */}
+          {/* GÖRSEL */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -24,13 +37,10 @@ export default function Hero({ data }) {
             <div className="relative rounded-[34px] bg-[#EFE6DB] p-4 md:p-7 shadow-[0_30px_80px_rgba(0,0,0,.08)]">
               <div className="aspect-[4/5] overflow-hidden rounded-[26px] bg-[#F7F2EA] flex items-center justify-center">
                 <img
-                  src={data.image?.trim() ? data.image : "/hero-shoe.jpg"}
-                  alt="CANTEK Hero"
+                  src={imageSrc}
+                  alt="CANTEK Premium Ayakkabı"
                   className="w-[96%] h-[96%] object-contain scale-125"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/hero-shoe.jpg";
-                  }}
+                  onError={handleImageError}
                 />
               </div>
 
@@ -38,6 +48,7 @@ export default function Hero({ data }) {
                 <p className="text-[10px] uppercase tracking-[0.28em] text-neutral-500">
                   CANTEK
                 </p>
+
                 <p className="mt-1 text-sm font-semibold">
                   Hakiki Deri • Premium İşçilik
                 </p>
@@ -70,7 +81,7 @@ export default function Hero({ data }) {
               transition={{ delay: 0.2 }}
               className="mt-6 text-base md:text-lg leading-8 text-neutral-600"
             >
-              {data.subtitle ||
+              {data?.subtitle ||
                 "Hakiki deri, üstün işçilik ve zamansız tasarımın buluştuğu premium erkek ayakkabı koleksiyonu."}
             </motion.p>
 
