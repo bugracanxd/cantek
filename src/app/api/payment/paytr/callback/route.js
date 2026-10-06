@@ -1,204 +1,327 @@
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-const FROM_EMAIL = "CANTEK <siparis@cantekshoes.com.tr>";
-const ADMIN_EMAIL = "cantekshoes@gmail.com";
-
-function formatPrice(value) {
-  return `${Number(value || 0).toLocaleString("tr-TR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} TL`;
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function buildItemsHtml(items) {
-  return items
-    .map((item) => {
-      const furText = item.furSelected ? " + Kürklü" : "";
-
-      return `
-        <tr>
-          <td style="padding:12px;border-bottom:1px solid #eee;">
-            <strong>${escapeHtml(item.name)}</strong>
-            ${
-              furText
-                ? `<div style="font-size:13px;color:#666;margin-top:4px;">${furText}</div>`
-                : ""
-            }
-          </td>
-
-          <td style="padding:12px;border-bottom:1px solid #eee;">
-            ${escapeHtml(item.size)}
-          </td>
-
-          <td style="padding:12px;border-bottom:1px solid #eee;">
-            ${escapeHtml(item.color || "-")}
-          </td>
-
-          <td style="padding:12px;border-bottom:1px solid #eee;text-align:center;">
-            ${item.quantity}
-          </td>
-
-          <td style="padding:12px;border-bottom:1px solid #eee;text-align:right;">
-            ${formatPrice(item.unitPrice)}
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
-}
-
-function buildOrderHtml(order) {
-  return `
-    <div style="margin:0;padding:40px 20px;background:#f7f7f5;font-family:Arial,Helvetica,sans-serif;color:#222;">
-      <div style="max-width:700px;margin:0 auto;background:#fff;border:1px solid #e8e5df;">
-
-        <div style="padding:30px;border-bottom:1px solid #eee;">
-          <div style="font-size:25px;font-weight:700;letter-spacing:2px;">
-            CANTEK
-          </div>
-
-          <div style="margin-top:8px;color:#777;font-size:14px;">
-            Sipariş Bilgilendirmesi
-          </div>
-        </div>
-
-        <div style="padding:30px;">
-
-          <h2 style="margin:0 0 10px;font-size:22px;">
-            Sipariş #${escapeHtml(order.orderNumber)}
-          </h2>
-
-          <p style="color:#666;margin:0 0 25px;">
-            Siparişiniz başarıyla alınmıştır.
-          </p>
-
-          <h3 style="font-size:16px;margin-bottom:12px;">
-            Ürünler
-          </h3>
-
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <thead>
-              <tr style="background:#f7f7f5;">
-                <th style="padding:12px;text-align:left;">Ürün</th>
-                <th style="padding:12px;text-align:left;">Beden</th>
-                <th style="padding:12px;text-align:left;">Renk</th>
-                <th style="padding:12px;text-align:center;">Adet</th>
-                <th style="padding:12px;text-align:right;">Fiyat</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${buildItemsHtml(order.items)}
-            </tbody>
-          </table>
-
-          <div style="margin-top:25px;border-top:1px solid #eee;padding-top:20px;">
-
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span>Ara toplam</span>
-              <strong>${formatPrice(order.subtotal)}</strong>
-            </div>
-
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span>Kargo</span>
-              <strong>${formatPrice(order.shippingCost)}</strong>
-            </div>
-
-            ${
-              Number(order.discount) > 0
-                ? `
-                  <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                    <span>İndirim</span>
-                    <strong>-${formatPrice(order.discount)}</strong>
-                  </div>
-                `
-                : ""
-            }
-
-            <div style="display:flex;justify-content:space-between;padding-top:15px;border-top:1px solid #ddd;font-size:18px;">
-              <strong>Toplam</strong>
-              <strong>${formatPrice(order.total)}</strong>
-            </div>
-
-          </div>
-
-          <div style="margin-top:30px;padding:20px;background:#f7f7f5;">
-
-            <h3 style="margin:0 0 12px;font-size:16px;">
-              Teslimat Bilgileri
-            </h3>
-
-            <div style="font-size:14px;line-height:1.7;">
-              <strong>${escapeHtml(order.customerName)}</strong><br/>
-              ${escapeHtml(order.customerPhone)}<br/>
-              ${escapeHtml(order.customerEmail)}<br/>
-              ${escapeHtml(order.shippingAddress)}
-            </div>
-
-          </div>
-
-          <p style="margin-top:30px;color:#777;font-size:13px;line-height:1.6;">
-            Siparişiniz CANTEK tarafından hazırlanacaktır.
-            Tahmini teslimat süresi 3–5 iş günüdür.
-          </p>
-
-        </div>
-
-        <div style="padding:20px 30px;background:#fafafa;border-top:1px solid #eee;color:#888;font-size:12px;">
-          © ${new Date().getFullYear()} CANTEK — cantekshoes.com.tr
-        </div>
-
-      </div>
-    </div>
-  `;
-}
-
-export async function sendOrderEmails(order) {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error(
-      "RESEND_API_KEY environment variable is missing."
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { verifyPaytrCallback } from "@/lib/paytr";
+import { sendOrderEmails } from "@/lib/email";
+// PayTR bu URL'e server-to-server POST bildirimi gönderir.
+// Başarılı ve geçerli callback sonrasında "OK" dönülür.
+export async function POST(req) {
+  try {
+    // --------------------------------------------------
+    // READ PAYTR FORM DATA
+    // --------------------------------------------------
+    const formData = await req.formData();
+    const params = Object.fromEntries(formData.entries());
+    console.log("PAYTR callback received:", {
+      merchant_oid: params.merchant_oid,
+      status: params.status,
+      total_amount: params.total_amount,
+    });
+    // --------------------------------------------------
+    // HASH VALIDATION
+    // --------------------------------------------------
+    const isValid = verifyPaytrCallback(params);
+    if (!isValid) {
+      console.error(
+        "PAYTR callback hash doğrulaması başarısız.",
+        {
+          merchant_oid: params.merchant_oid,
+        }
+      );
+      return new NextResponse(
+        "PAYTR notification failed: bad hash",
+        {
+          status: 400,
+        }
+      );
+    }
+    // --------------------------------------------------
+    // MERCHANT OID
+    // --------------------------------------------------
+    const merchantOid = params.merchant_oid
+      ?.toString()
+      .trim();
+    if (!merchantOid) {
+      console.error(
+        "PAYTR callback merchant_oid bulunamadı."
+      );
+      return new NextResponse(
+        "PAYTR notification failed: missing merchant_oid",
+        {
+          status: 400,
+        }
+      );
+    }
+    // --------------------------------------------------
+    // PAYTR TOTAL
+    // --------------------------------------------------
+    const paytrTotalRaw = params.total_amount
+      ?.toString()
+      .trim();
+    const paytrTotalKurus = Number(paytrTotalRaw);
+    if (
+      !paytrTotalRaw ||
+      !Number.isFinite(paytrTotalKurus) ||
+      paytrTotalKurus < 0
+    ) {
+      console.error(
+        "PAYTR callback total_amount geçersiz.",
+        {
+          merchant_oid: merchantOid,
+          total_amount: paytrTotalRaw,
+        }
+      );
+      return new NextResponse(
+        "PAYTR notification failed: invalid total_amount",
+        {
+          status: 400,
+        }
+      );
+    }
+    // --------------------------------------------------
+    // FIND ORDER
+    // --------------------------------------------------
+    const order = await prisma.order.findUnique({
+      where: {
+        paytrMerchantOid: merchantOid,
+      },
+      include: {
+        items: true,
+      },
+    });
+    /*
+     * Sipariş bulunamadığında PAYTR'nin sürekli
+     * tekrar denemesini istemiyoruz.
+     */
+    if (!order) {
+      console.warn(
+        "PAYTR callback için sipariş bulunamadı:",
+        merchantOid
+      );
+      return new NextResponse("OK");
+    }
+    // --------------------------------------------------
+    // TOTAL AMOUNT VALIDATION
+    // --------------------------------------------------
+    const expectedTotalKurus = Math.round(
+      Number(order.total) * 100
+    );
+    if (paytrTotalKurus !== expectedTotalKurus) {
+      console.error(
+        "PAYTR ödeme tutarı sipariş tutarıyla eşleşmiyor.",
+        {
+          orderNumber: order.orderNumber,
+          merchantOid,
+          paytrTotalKurus,
+          expectedTotalKurus,
+          orderTotal: order.total,
+        }
+      );
+      return new NextResponse(
+        "PAYTR notification failed: amount mismatch",
+        {
+          status: 400,
+        }
+      );
+    }
+    // --------------------------------------------------
+    // DUPLICATE CALLBACK
+    // --------------------------------------------------
+    /*
+     * Bu sipariş daha önce işlendi ise tekrar:
+     *
+     * - ödeme güncellemesi
+     * - mail gönderimi
+     * - stok işlemi
+     *
+     * yapılmaz.
+     */
+    if (order.paytrProcessed) {
+      console.log(
+        "PAYTR callback zaten işlenmiş:",
+        order.orderNumber
+      );
+      return new NextResponse("OK");
+    }
+    // --------------------------------------------------
+    // SUCCESS
+    // --------------------------------------------------
+    if (params.status === "success") {
+      let paymentProcessed = false;
+      /*
+       * ÖNEMLİ:
+       *
+       * Stok /api/orders sırasında zaten düşürülüyor.
+       *
+       * Bu nedenle başarılı ödeme callback'inde
+       * tekrar stok düşürmüyoruz.
+       */
+      await prisma.$transaction(async (tx) => {
+        /*
+         * Aynı anda gelen duplicate callback'lere karşı
+         * güncel sipariş durumunu tekrar kontrol ediyoruz.
+         */
+        const currentOrder = await tx.order.findUnique({
+          where: {
+            id: order.id,
+          },
+          select: {
+            paytrProcessed: true,
+            paymentStatus: true,
+          },
+        });
+        if (
+          !currentOrder ||
+          currentOrder.paytrProcessed
+        ) {
+          return;
+        }
+        await tx.order.update({
+          where: {
+            id: order.id,
+          },
+          data: {
+            paymentStatus: "paid",
+            status: "PAID",
+            paytrProcessed: true,
+          },
+        });
+        paymentProcessed = true;
+      });
+      console.log(
+        "PAYTR ödeme başarılı:",
+        order.orderNumber
+      );
+      // --------------------------------------------------
+      // SEND EMAILS
+      // --------------------------------------------------
+      /*
+       * Mail sadece bu callback gerçekten siparişi
+       * işlediyse gönderilir.
+       *
+       * Böylece duplicate callback'te tekrar mail
+       * gönderilmez.
+       */
+      if (paymentProcessed) {
+        try {
+          const emailOrder =
+            await prisma.order.findUnique({
+              where: {
+                id: order.id,
+              },
+              include: {
+                items: true,
+              },
+            });
+          if (emailOrder) {
+            await sendOrderEmails(emailOrder);
+            console.log(
+              "CANTEK sipariş mailleri gönderildi:",
+              emailOrder.orderNumber
+            );
+          }
+        } catch (emailError) {
+          /*
+           * Ödeme başarılı olduğu halde mail servisi
+           * hata verirse siparişi başarısız yapmıyoruz.
+           *
+           * Çünkü ödeme zaten gerçekleşmiş durumda.
+           */
+          console.error(
+            "CANTEK sipariş maili gönderilemedi:",
+            emailError
+          );
+        }
+      }
+      return new NextResponse("OK");
+    }
+    // --------------------------------------------------
+    // PAYMENT FAILED
+    // --------------------------------------------------
+    /*
+     * /api/orders sırasında stoklar sipariş için
+     * rezerve edildi.
+     *
+     * Ödeme başarısız olursa bu rezervasyonu
+     * geri veriyoruz.
+     */
+    if (params.status !== "success") {
+      await prisma.$transaction(async (tx) => {
+        // --------------------------------------------
+        // CURRENT ORDER
+        // --------------------------------------------
+        const currentOrder =
+          await tx.order.findUnique({
+            where: {
+              id: order.id,
+            },
+            select: {
+              paytrProcessed: true,
+              paymentStatus: true,
+            },
+          });
+        /*
+         * Başka bir callback aynı anda işlemişse
+         * hiçbir şey yapma.
+         */
+        if (
+          !currentOrder ||
+          currentOrder.paytrProcessed
+        ) {
+          return;
+        }
+        // --------------------------------------------
+        // RESTORE STOCK
+        // --------------------------------------------
+        for (const item of order.items) {
+          await tx.product.update({
+            where: {
+              id: item.productId,
+            },
+            data: {
+              stock: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+        // --------------------------------------------
+        // MARK ORDER FAILED
+        // --------------------------------------------
+        await tx.order.update({
+          where: {
+            id: order.id,
+          },
+          data: {
+            paymentStatus: "payment_failed",
+            status: "CANCELLED",
+            paytrProcessed: true,
+          },
+        });
+      });
+      console.log(
+        "PAYTR ödeme başarısız, stok geri verildi:",
+        order.orderNumber
+      );
+      return new NextResponse("OK");
+    }
+    // --------------------------------------------------
+    // FALLBACK
+    // --------------------------------------------------
+    return new NextResponse("OK");
+  } catch (error) {
+    console.error(
+      "PAYTR callback error:",
+      error
+    );
+    /*
+     * Gerçek bir server hatasında 500 dönüyoruz.
+     * Böylece PAYTR bildirimi tekrar işleyebilir.
+     */
+    return new NextResponse(
+      "PAYTR notification failed",
+      {
+        status: 500,
+      }
     );
   }
-
-  if (!order?.customerEmail) {
-    throw new Error(
-      "Order customer email is missing."
-    );
-  }
-
-  const html = buildOrderHtml(order);
-
-  // Müşteriye sipariş maili
-  const customerEmail =
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [order.customerEmail],
-      subject: `CANTEK — Siparişiniz Alındı #${order.orderNumber}`,
-      html,
-    });
-
-  // Admin'e sipariş maili
-  const adminEmail =
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [ADMIN_EMAIL],
-      subject: `CANTEK — Yeni Sipariş #${order.orderNumber}`,
-      html,
-    });
-
-  return {
-    customerEmail,
-    adminEmail,
-  };
 }
